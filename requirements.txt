@@ -1,0 +1,59 @@
+# ── Core ──────────────────────────────────────
+Django==4.2.13
+djangorestframework==3.15.1
+djangorestframework-simplejwt==5.3.1
+django-cors-headers==4.3.1
+django-filter==24.1
+drf-nested-routers==0.94.1
+
+# ── Database ──────────────────────────────────
+psycopg2-binary==2.9.9
+dj-database-url==2.1.0
+
+
+# ── Auth & permissions ────────────────────────
+django-guardian==2.4.0        # object-level permissions
+django-auditlog==3.0.0        # immutable audit trail
+
+# ── Async tasks ───────────────────────────────
+celery==5.3.6
+redis==5.0.3
+django-celery-beat==2.6.0     # periodic tasks (vesting reminders, 409A alerts)
+django-celery-results==2.5.1
+
+# ── PDF generation ────────────────────────────
+weasyprint==62.3              # HTML → PDF (certificates, grant letters, K-1s)
+jinja2==3.1.4                 # template engine for PDF HTML
+
+# ── DocuSign e-signatures ─────────────────────
+docusign-esign==3.25.0
+PyJWT==2.8.0                  # DocuSign JWT auth
+
+# ── Document storage (S3) ─────────────────────
+boto3==1.34.69
+django-storages==1.14.2
+
+# ── Email ─────────────────────────────────────
+django-anymail==10.3          # SendGrid / Mailgun / SES
+
+# ── Utilities ────────────────────────────────
+python-decouple==3.8          # .env variable loading
+Pillow==10.2.0                # image handling in PDFs
+babel==2.14.0                 # currency/number formatting
+python-dateutil==2.9.0        # date arithmetic (vesting, cliffs)
+
+# ── Financial math ───────────────────────────
+numpy==1.26.4                 # Black-Scholes / OPM calculations
+scipy==1.12.0                 # statistical distributions (BS model)
+
+# ── Dev / test ────────────────────────────────
+pytest==8.1.1
+pytest-django==4.8.0
+factory-boy==3.3.0
+coverage==7.4.4
+black==24.3.0
+flake8==7.0.0
+
+# ── Production server ────────────────────────
+gunicorn==22.0.0
+whitenoise==6.6.0             # static file serving

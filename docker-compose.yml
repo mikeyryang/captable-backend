@@ -1,0 +1,95 @@
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: captable
+      POSTGRES_USER: captable
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-devsecret}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U captable"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (Celery broker + result backend) ───────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Django API server ────────────────────────────────────────
+  api:
+    build: .
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py makemigrations accounts core equity documents --noinput &&
+             python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn captable.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 60"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://captable:${DB_PASSWORD:-devsecret}@db:5432/captable
+      REDIS_URL: redis://redis:6379/0
+      DJANGO_SETTINGS_MODULE: captable.settings.local
+    volumes:
+      - .:/app
+      - mediafiles:/app/media
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Celery worker (async tasks: PDF gen, email, 409A checks) ─
+  worker:
+    build: .
+    restart: unless-stopped
+    command: celery -A captable worker -l info -Q default,pdf,compliance --concurrency 4
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://captable:${DB_PASSWORD:-devsecret}@db:5432/captable
+      REDIS_URL: redis://redis:6379/0
+      DJANGO_SETTINGS_MODULE: captable.settings.local
+    volumes:
+      - .:/app
+      - mediafiles:/app/media
+    depends_on:
+      - db
+      - redis
+
+  # ── Celery Beat (scheduled tasks: vesting reminders, staleness alerts) ──
+  beat:
+    build: .
+    restart: unless-stopped
+    command: celery -A captable beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://captable:${DB_PASSWORD:-devsecret}@db:5432/captable
+      REDIS_URL: redis://redis:6379/0
+      DJANGO_SETTINGS_MODULE: captable.settings.local
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  pgdata:
+  mediafiles:
