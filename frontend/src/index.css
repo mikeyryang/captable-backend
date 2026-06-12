@@ -1,0 +1,35 @@
+:root {
+  --color-background-primary: #FFFFFF;
+  --color-background-secondary: #F7F3EE;
+  --color-text-primary: #2B2420;
+  --color-text-secondary: #6E5F53;
+  --color-text-tertiary: #A89A8C;
+  --color-border-primary: #E8E0D6;
+  --color-border-secondary: #DDD2C5;
+  --color-border-tertiary: #EFE8DF;
+  --font-sans: 'General Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+html, body {
+  margin: 0;
+  min-height: 100vh;
+  background: #FAF7F3;
+  color: var(--color-text-primary);
+}
+
+body {
+  padding: 24px;
+  box-sizing: border-box;
+  position: relative;
+  overflow-x: hidden;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+  min-height: calc(100vh - 48px);
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

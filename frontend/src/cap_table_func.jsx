@@ -1,5 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { LayoutGrid, Table2, PlusCircle, ShieldAlert, GitBranch, Waves, TrendingUp, Landmark, FileEdit, Star, FileText } from "lucide-react";
+
 
 // ════════════════════════════════════════════════════════════
 // SEED DATA
@@ -9,8 +11,8 @@ const TODAY = new Date("2026-06-09");
 let NEXT_ID = 20;
 
 const CO = {
-  name: "Acme Corp, Inc.",
-  state: "Delaware", entity: "C-Corporation",
+  name: "Valkyrie Fund",
+  state: "Santa Clara", entity: "LP",
   inc: "2022-03-15",
   auth: { common: 15000000, pref_a: 5000000, pool: 3000000 },
   val409a: 4200000, valDate: "2024-06-01",
@@ -25,7 +27,7 @@ const CLS_COLOR = {
   "NSO (Advisor)": "#BA7517",
   "Option Pool": "#9CA3AF",
   "RSU": "#D85A30",
-  "SAFE": "#6366F1",
+  "SAFE": "#C8915A",
   "Warrant": "#64748B",
 };
 
@@ -121,9 +123,10 @@ function checkQSBS(co) {
   return { status:"ok", estAssets, msg:`Company appears QSBS-eligible: C-corp, assets ~$${(estAssets/1e6).toFixed(1)}M (under $50M), incorporated ${co.inc}.`, action:"Confirm with tax counsel before any secondary sales. 5-year holding periods tracked below." };
 }
 
-function checkForm3921(secs) {
+function checkForm3921(secs, filed = false) {
   const isoExer = secs.filter(s => s.cls === "ISO" && (s.exer || 0) > 0);
-  // Jordan exercised in 2025 → Form 3921 due Jan 31, 2026 → TODAY is June 9, 2026 → overdue
+  if (filed) return { status:"ok", isoExer:[], msg:"Form 3921 filed for all ISO exercises.", action:null };
+  // for example: Jordan exercised in 2025 → Form 3921 due Jan 31, 2026 → TODAY is June 9, 2026 → overdue
   const overdue = isoExer.filter(() => TODAY > new Date("2026-01-31"));
   if (overdue.length > 0) return { status:"critical", isoExer, msg:`${overdue.length} ISO exercise(s) with overdue Form 3921 filings (deadline was Jan 31, 2026).`, action:"File Form 3921 immediately. IRS penalty is $270–$550 per form for late filing after 30 days, with no ceiling for intentional disregard." };
   if (isoExer.length > 0) return { status:"warning",  isoExer, msg:`${isoExer.length} ISO exercise(s) recorded — Form 3921 filing required by Jan 31 of following year.`, action:"Prepare and file Form 3921 with the IRS and furnish a copy to the employee by Jan 31." };
@@ -136,12 +139,25 @@ function checkForm3921(secs) {
 
 export default function CapTableApp() {
   const [view, setView] = useState("dashboard");
-  const [secs, setSecs] = useState(SEC0);
+  const [secs, setSecs] = useState(() => {
+  const saved = localStorage.getItem("captable_secs");
+    return saved ? JSON.parse(saved) : SEC0;
+  });
+  const [valDate, setValDate] = useState(() => localStorage.getItem("captable_valDate") || CO.valDate);
+  const [val409a, setVal409a] = useState(() => {
+    const saved = localStorage.getItem("captable_val409a");
+    return saved ? Number(saved) : CO.val409a;
+  });
+  const [f3921Filed, setF3921Filed] = useState(() => localStorage.getItem("captable_f3921Filed") === "true");
   const [filter, setFilter] = useState("all");
   const [scenario, setScenario] = useState({ raise: 5000000, preMoney: 15000000 });
   const [exitVal, setExitVal] = useState(25000000);
   const [issueForm, setIssueForm] = useState({ holder:"", type:"employee", cls:"ISO", shares:"", price:"0.42", date:"", cliff:"12", mos:"48" });
   const [issueSuccess, setIssueSuccess] = useState(false);
+  useEffect(() => { localStorage.setItem("captable_secs", JSON.stringify(secs)); }, [secs]);
+  useEffect(() => { localStorage.setItem("captable_valDate", valDate); }, [valDate]);
+  useEffect(() => { localStorage.setItem("captable_val409a", String(val409a)); }, [val409a]);
+  useEffect(() => { localStorage.setItem("captable_f3921Filed", String(f3921Filed)); }, [f3921Filed]);
 
   const stats = useMemo(() => {
     const nonPool = secs.filter(s => s.type !== "pool");
@@ -153,12 +169,12 @@ export default function CapTableApp() {
   }, [secs]);
 
   const compliance = useMemo(() => ({
-    a409:  check409a(CO),
-    r701:  checkRule701(secs),
-    b83:   check83b(secs),
-    qsbs:  checkQSBS(CO),
-    f3921: checkForm3921(secs),
-  }), [secs]);
+  a409:  check409a({ ...CO, valDate, val409a }),
+  r701:  checkRule701(secs),
+  b83:   check83b(secs),
+  qsbs:  checkQSBS(CO),
+  f3921: checkForm3921(secs, f3921Filed),
+}), [secs, valDate, val409a, f3921Filed]);
 
   const critCount = useMemo(() =>
     Object.values(compliance).filter(c => c.status === "critical").length, [compliance]);
@@ -226,22 +242,26 @@ export default function CapTableApp() {
     setTimeout(() => { setIssueSuccess(false); setView("ledger"); }, 1200);
   }
 
+  function handleRemove(id) {
+  if (!window.confirm("Remove this security from the cap table? This cannot be undone.")) return;
+  setSecs(prev => prev.filter(s => s.id !== id));
+  }
   // ── Shared Styles ─────────────────────────
   const S = {
-    app:     { display:"flex", height:660, fontFamily:"var(--font-sans)", background:"var(--color-background-primary)", overflow:"hidden", borderRadius:12, border:"0.5px solid var(--color-border-tertiary)" },
-    sb:      { width:212, background:"#0B0E1A", display:"flex", flexDirection:"column", flexShrink:0, borderRadius:"12px 0 0 12px", overflow:"hidden" },
+    app:     { display:"flex", height:"calc(100vh - 48px)", fontFamily:"var(--font-sans)", background:"var(--color-background-primary)", overflow:"hidden", borderRadius:12, border:"0.5px solid var(--color-border-tertiary)" },
+    sb:      { width:212, background:"#2A1D16", display:"flex", flexDirection:"column", flexShrink:0, borderRadius:"12px 0 0 12px", overflow:"hidden" },
     sbTop:   { padding:"18px 16px 14px", borderBottom:"0.5px solid rgba(255,255,255,0.07)" },
-    sbLogo:  { fontSize:14, fontWeight:500, color:"#F1F1F3", lineHeight:1.3, marginBottom:2 },
-    sbSub:   { fontSize:11, color:"rgba(255,255,255,0.35)" },
+    sbLogo: { fontSize:20, fontWeight:500, color:"#F1F1F3", lineHeight:1.3, marginBottom:2, textShadow:"5 5 15px rgba(167,139,250,0.5)" },
+    sbSub:   { fontSize:14, color:"rgba(255,255,255,0.35)" },
     sbBadge: (color) => ({ display:"inline-flex", alignItems:"center", gap:4, marginTop:8, fontSize:11, padding:"3px 8px", borderRadius:4, background: color+"20", color }),
     sbNav:   { flex:1, padding:"10px 0", overflowY:"auto" },
-    sbItem:  (a) => ({ display:"flex", alignItems:"center", gap:9, padding:"9px 16px", fontSize:12.5, cursor:"pointer", color: a ? "#A5B4FC" : "rgba(255,255,255,0.48)", background: a ? "rgba(99,102,241,0.12)" : "transparent", borderLeft: a ? "2px solid #6366F1" : "2px solid transparent", transition:"all .12s", userSelect:"none" }),
+    sbItem:  (a) => ({ display:"flex", alignItems:"center", gap:9, padding:"9px 16px", fontSize:12.5, cursor:"pointer", color: a ? "#E8C9A8" : "rgba(255,255,255,0.48)", background: a ? "rgba(200,145,90,0.14)" : "transparent", borderLeft: a ? "2px solid #C8915A" : "2px solid transparent", transition:"all .12s", userSelect:"none" }),
     sbFoot:  { padding:"12px 16px", borderTop:"0.5px solid rgba(255,255,255,0.07)" },
     sbCLabel:{ fontSize:9.5, color:"rgba(255,255,255,0.28)", letterSpacing:".07em", textTransform:"uppercase", marginBottom:8 },
     sbCheck: { display:"flex", alignItems:"center", gap:7, marginBottom:6, fontSize:11, color:"rgba(255,255,255,0.42)", cursor:"pointer" },
     dot:     (st) => ({ width:6, height:6, borderRadius:"50%", background: STATUS_COLOR[st], flexShrink:0, boxShadow: st==="critical" ? `0 0 5px ${STATUS_COLOR[st]}80` : "none" }),
     main:    { flex:1, display:"flex", flexDirection:"column", overflow:"hidden" },
-    topbar:  { display:"flex", alignItems:"center", padding:"12px 22px", borderBottom:"0.5px solid var(--color-border-tertiary)", gap:12, flexShrink:0 },
+    topbar:  { display:"flex", alignItems:"center", padding:"12px 22px", borderBottom:"0.5px solid var(--color-border-secondary)", gap:12, flexShrink:0 },
     tbTitle: { fontSize:14, fontWeight:500, color:"var(--color-text-primary)", flex:1 },
     tbMeta:  { fontSize:11, color:"var(--color-text-tertiary)", fontVariantNumeric:"tabular-nums" },
     content: { flex:1, overflow:"auto", padding:"18px 22px" },
@@ -263,9 +283,9 @@ export default function CapTableApp() {
     select:  { width:"100%", padding:"8px 10px", border:"0.5px solid var(--color-border-secondary)", borderRadius:8, fontSize:13, background:"var(--color-background-primary)", color:"var(--color-text-primary)", boxSizing:"border-box", outline:"none" },
     label:   { fontSize:12, color:"var(--color-text-secondary)", marginBottom:4, display:"block", fontWeight:500 },
     fg2:     { display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 },
-    btn:     { padding:"9px 18px", background:"#6366F1", color:"white", border:"none", borderRadius:8, fontSize:13, cursor:"pointer", fontWeight:500 },
+    btn:     { padding:"9px 18px", background: "#C8915A", color:"white", border:"none", borderRadius:8, fontSize:13, cursor:"pointer", fontWeight:500 },
     btnGhost:{ padding:"7px 14px", background:"transparent", color:"var(--color-text-secondary)", border:"0.5px solid var(--color-border-secondary)", borderRadius:8, fontSize:12, cursor:"pointer" },
-    slider:  { width:"100%", accentColor:"#6366F1" },
+    slider:  { width:"100%", accentColor:"#C8915A" },
     warnBox: (color) => ({ padding:"10px 12px", background:color+"15", borderRadius:6, fontSize:12, marginBottom:12, color }),
     flag:    (color) => ({ fontSize:10, padding:"1px 5px", borderRadius:3, background:color+"18", color }),
     vestBar: { height:4, background:"var(--color-border-tertiary)", borderRadius:2, width:52, overflow:"hidden", position:"relative" },
@@ -280,15 +300,14 @@ export default function CapTableApp() {
   ];
 
   const NAV = [
-    { id:"dashboard",  label:"Overview",       icon:"◈" },
-    { id:"ledger",     label:"Cap Table",       icon:"≣" },
-    { id:"issue",      label:"Issue Security",  icon:"+" },
-    { id:"compliance", label:"Compliance",      icon:"⛨", badge: critCount+warnCount },
-    { id:"model",      label:"Model Round",     icon:"⟁" },
-    { id:"waterfall",  label:"Waterfall",       icon:"∿" },
+  { id:"dashboard",  label:"Overview",       icon:LayoutGrid },
+  { id:"ledger",     label:"Cap Table",       icon:Table2 },
+  { id:"issue",      label:"Issue Security",  icon:PlusCircle },
+  { id:"compliance", label:"Compliance",      icon:ShieldAlert, badge: critCount+warnCount },
+  { id:"model",      label:"Model Round",     icon:GitBranch },
+  { id:"waterfall",  label:"Waterfall",       icon:Waves },
   ];
 
-  // ═══════════════════════════════════
   // VIEW: DASHBOARD
   // ═══════════════════════════════════
   const Dashboard = () => {
@@ -387,7 +406,7 @@ export default function CapTableApp() {
       <div>
         <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap", alignItems:"center" }}>
           {["all","founder","investor","employee","advisor","pool"].map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{ padding:"5px 11px", borderRadius:6, fontSize:12, cursor:"pointer", fontWeight: filter===f ? 500 : 400, background: filter===f ? "#6366F1" : "var(--color-background-secondary)", color: filter===f ? "white" : "var(--color-text-secondary)", border: "0.5px solid " + (filter===f ? "#6366F1" : "var(--color-border-tertiary)"), transition:"all .12s" }}>
+            <button key={f} onClick={() => setFilter(f)} style={{ padding:"5px 11px", borderRadius:6, fontSize:12, cursor:"pointer", fontWeight: filter===f ? 500 : 400, background: filter===f ? "#C8915A" : "var(--color-background-secondary)", color: filter===f ? "white" : "var(--color-text-secondary)", border: "0.5px solid " + (filter===f ? "#C8915A" : "var(--color-border-tertiary)"), transition:"all .12s" }}>
               {f[0].toUpperCase()+f.slice(1)}
             </button>
           ))}
@@ -399,7 +418,7 @@ export default function CapTableApp() {
           <table style={S.tbl}>
             <thead>
               <tr>
-                {["Holder","Type","Security","Shares","Vested","Basic %","FD %","Flags"].map(h => (
+                {["Holder","Type","Security","Shares","Vested","Basic %","FD %","Flags","Actions"].map(h => (
                   <th key={h} style={S.th}>{h}</th>
                 ))}
               </tr>
@@ -413,7 +432,7 @@ export default function CapTableApp() {
                 const flags = [];
                 if (s.type === "founder" && s.cls === "Common" && !s.f83b) flags.push({ l:"83(b) needed", c:"#F59E0B" });
                 if (s.cls === "ISO" && (s.exer||0) > 0) flags.push({ l:`3921 overdue`, c:"#EF4444" });
-                if (s.vest && vPct < 100 && vPct > 0) flags.push({ l:vPct+"% vested", c:"#6366F1" });
+                if (s.vest && vPct < 100 && vPct > 0) flags.push({ l:vPct+"% vested", c:"#C8915A" });
                 if (s.vest && vPct === 0) flags.push({ l:"Pre-cliff", c:"#9CA3AF" });
                 if (s.vest && vPct === 100) flags.push({ l:"Fully vested", c:"#10B981" });
                 return (
@@ -432,7 +451,7 @@ export default function CapTableApp() {
                       {s.vest ? (
                         <div>
                           <div style={S.vestBar}>
-                            <div style={{ position:"absolute", top:0, left:0, height:"100%", width:vPct+"%", background:CLS_COLOR[s.cls]||"#6366F1", borderRadius:2 }}/>
+                            <div style={{ position:"absolute", top:0, left:0, height:"100%", width:vPct+"%", background:CLS_COLOR[s.cls]||"#C8915A", borderRadius:2 }}/>
                           </div>
                           <div style={{ fontSize:10, color:"var(--color-text-tertiary)", marginTop:2 }}>{fmt(v)} / {fmt(s.vest.total)}</div>
                         </div>
@@ -444,6 +463,11 @@ export default function CapTableApp() {
                       <div style={{ display:"flex", gap:3, flexWrap:"wrap" }}>
                         {flags.map((f,fi) => <span key={fi} style={S.flag(f.c)}>{f.l}</span>)}
                       </div>
+                    </td>
+                    <td style={S.td}>
+                       <button onClick={() => handleRemove(s.id)} style={{ ...S.btnGhost, padding:"4px 10px", fontSize:11, color:"#EF4444", borderColor:"#EF444440" }}>
+                        Remove
+                      </button>
                     </td>
                   </tr>
                 );
@@ -542,6 +566,16 @@ export default function CapTableApp() {
                       <strong>Action required:</strong> {c.action}
                     </div>
                   )}
+                  {k === "a409" && c.status !== "ok" && (
+                    <button style={{ ...S.btn, marginTop:10, fontSize:12 }} onClick={() => { setValDate(TODAY.toISOString().slice(0,10)); setVal409a(5800000); }}>
+                      Order new 409A valuation →
+                    </button>
+                  )}
+                  {k === "f3921" && c.status !== "ok" && (
+                    <button style={{ ...S.btn, marginTop:10, fontSize:12 }} onClick={() => setF3921Filed(true)}>
+                      Mark Form 3921 as filed →
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -584,7 +618,7 @@ export default function CapTableApp() {
                           <span style={{ fontSize:11, color: done ? "#10B981" : "var(--color-text-secondary)" }}>{done ? "✓ Achieved" : `${remaining}mo remaining · ${h.fiveYear}`}</span>
                         </div>
                         <div style={{ height:4, background:"var(--color-border-tertiary)", borderRadius:2 }}>
-                          <div style={{ height:4, width:progress+"%", background: done ? "#10B981" : "#6366F1", borderRadius:2 }}/>
+                          <div style={{ height:4, width:progress+"%", background: done ? "#10B981" : "#C8915A", borderRadius:2 }}/>
                         </div>
                       </div>
                     );
@@ -684,14 +718,14 @@ export default function CapTableApp() {
                 const after  = r.shares / newFD;
                 const delta  = after - before;
                 return (
-                  <tr key={r.holder} style={{ ...S.trr(i), ...(r.isNew ? { background:"rgba(99,102,241,0.06)" } : {}) }}>
-                    <td style={{ ...S.td, fontWeight: r.isNew ? 500 : 400, color: r.isNew ? "#6366F1" : "var(--color-text-primary)" }}>
+                  <tr key={r.holder} style={{ ...S.trr(i), ...(r.isNew ? { background:"rgba(200,145,90,0.08)" } : {}) }}>
+                    <td style={{ ...S.td, fontWeight: r.isNew ? 500 : 400, color: r.isNew ? "#C8915A" : "var(--color-text-primary)" }}>
                       {r.isNew ? "★ " : ""}{r.holder}
                     </td>
                     <td style={{ ...S.td, fontVariantNumeric:"tabular-nums" }}>{r.isNew ? fmt(Math.round(newShares)) : fmt(r.shares)}</td>
                     <td style={{ ...S.td, fontVariantNumeric:"tabular-nums" }}>{r.isNew ? "—" : pct(before)}</td>
                     <td style={{ ...S.td, fontVariantNumeric:"tabular-nums" }}>{pct(after)}</td>
-                    <td style={{ ...S.td, fontVariantNumeric:"tabular-nums", color: r.isNew ? "#6366F1" : delta < -0.001 ? "#EF4444" : "#10B981" }}>
+                    <td style={{ ...S.td, fontVariantNumeric:"tabular-nums", color: r.isNew ? "#C8915A" : delta < -0.001 ? "#EF4444" : "#10B981" }}>
                       {r.isNew ? "New" : ((delta * 100).toFixed(2) + "%")}
                     </td>
                   </tr>
@@ -845,7 +879,7 @@ export default function CapTableApp() {
             </div>
           )}
           {issueForm.cls === "SAFE" && (
-            <div style={S.warnBox("#6366F1")}>
+            <div style={S.warnBox("#C8915A")}>
               ℹ SAFEs are not equity at issuance. They convert to preferred stock at a future priced round. Set the valuation cap and discount rate on the instrument itself. Consult your attorney.
             </div>
           )}
@@ -890,7 +924,7 @@ export default function CapTableApp() {
         <nav style={S.sbNav}>
           {NAV.map(n => (
             <div key={n.id} style={S.sbItem(view===n.id)} onClick={() => setView(n.id)}>
-              <span style={{ fontSize:14, lineHeight:1 }}>{n.icon}</span>
+              <n.icon size={15} strokeWidth={1.75} />
               <span style={{ flex:1 }}>{n.label}</span>
               {n.badge > 0 && (
                 <span style={{ fontSize:10, background: compliance.a409.status==="critical" || compliance.f3921.status==="critical" ? "#EF4444" : "#F59E0B", color:"white", borderRadius:"50%", width:17, height:17, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
