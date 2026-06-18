@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from "recharts";
-import { LayoutGrid, Building2, Users, TrendingUp, FileText, ChevronRight, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { LayoutGrid, Building2, Users, TrendingUp, FileText, ChevronRight, ArrowUpRight, ArrowDownRight, Minus, UserCircle } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════
 // MOCK DATA
@@ -218,6 +218,7 @@ function handleUpdateMark(id, newMark) {
     { id:"lps",        label:"LP Management",      icon:Users },
     { id:"metrics",    label:"Fund Metrics",       icon:TrendingUp },
     { id:"documents",  label:"Documents",          icon:FileText },
+    { id:"lpportal", label:"LP Portal", icon:UserCircle },
   ];
 
   const moicColor = (m) => m >= 2 ? "#10B981" : m >= 1 ? "#F59E0B" : "#EF4444";
@@ -601,8 +602,160 @@ function handleUpdateMark(id, newMark) {
       </div>
     </div>
   );
+// 
+// LP Portal 
+//
+const LPPortal = () => {
+  const [selectedLP, setSelectedLP] = useState(null);
 
-  const VIEWS = { overview:<Overview/>, portfolio:<Portfolio/>, lps:<LPView/>, metrics:<Metrics/>, documents:<Documents/> };
+  if (!selectedLP) return (
+    <div>
+      <div style={S.pageTitle}>LP Portal</div>
+      <div style={S.pageSub}>Select a limited partner to view their personalized statement</div>
+      <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12}}>
+        {lps.map(lp => {
+          const tvpi = (lp.nav + lp.distributions) / lp.contributed;
+          return (
+            <div key={lp.id} onClick={()=>setSelectedLP(lp)}
+              style={{...S.card, cursor:"pointer", transition:"box-shadow .15s", borderTop:`3px solid ${tvpi>=2?"#10B981":tvpi>=1?"#C8915A":"#EF4444"}`}}>
+              <div style={{fontSize:13, fontWeight:600, marginBottom:4}}>{lp.name}</div>
+              <div style={{marginBottom:12}}><span style={S.tag}>{lp.type}</span></div>
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:8}}>
+                {[
+                  {l:"Commitment", v:fmt(lp.commitment)},
+                  {l:"NAV",        v:fmt(lp.nav)},
+                  {l:"Distributed",v:fmt(lp.distributions)},
+                  {l:"TVPI",       v:fmtX(tvpi), color: tvpi>=2?"#10B981":tvpi>=1?"#C8915A":"#EF4444"},
+                ].map((m,i)=>(
+                  <div key={i}>
+                    <div style={{fontSize:10, color:"var(--color-text-tertiary)", marginBottom:2}}>{m.l}</div>
+                    <div style={{fontSize:14, fontWeight:500, color:m.color||"var(--color-text-primary)"}}>{m.v}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{marginTop:12, fontSize:11, color:"#C8915A", fontWeight:500}}>View statement →</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const lp = selectedLP;
+  const tvpi = (lp.nav + lp.distributions) / lp.contributed;
+  const dpi  = lp.distributions / lp.contributed;
+  const rvpi = lp.nav / lp.contributed;
+  const ownershipPct = lp.contributed / lpMetrics.totalContributed;
+  const capitalCalls = CASHFLOWS.filter(c=>c.type==="call").map(c=>({
+    ...c, lpAmount: Math.abs(c.amount) * ownershipPct
+  }));
+  const distributions = CASHFLOWS.filter(c=>c.type==="dist").map(c=>({
+    ...c, lpAmount: c.amount * ownershipPct
+  }));
+
+  return (
+    <div>
+      <button onClick={()=>setSelectedLP(null)}
+        style={{fontSize:12,padding:"6px 12px",border:"0.5px solid var(--color-border-secondary)",borderRadius:6,background:"transparent",color:"var(--color-text-secondary)",cursor:"pointer",marginBottom:16}}>
+        ← All LPs
+      </button>
+      <div style={{...S.card, background:"#2A1D16", border:"none", marginBottom:14}}>
+        <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
+          <div>
+            <div style={{fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:4, letterSpacing:"0.06em", textTransform:"uppercase"}}>LP Statement — {FUND.name}</div>
+            <div style={{fontSize:22, fontWeight:600, color:"#F1EFE8", marginBottom:4}}>{lp.name}</div>
+            <span style={{fontSize:11, padding:"3px 10px", borderRadius:4, background:"rgba(200,145,90,0.2)", color:"#E8C9A8"}}>{lp.type}</span>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:4}}>As of {new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div>
+            <div style={{fontSize:11, color:"rgba(255,255,255,0.4)"}}>{FUND.vintage} Vintage · {FUND.strategy}</div>
+          </div>
+        </div>
+        <div style={{display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:1, marginTop:20, background:"rgba(255,255,255,0.06)", borderRadius:8, overflow:"hidden"}}>
+          {[
+            {l:"Commitment",  v:fmt(lp.commitment),   sub:"Total committed"},
+            {l:"Called",      v:fmt(lp.contributed),  sub:pct(lp.contributed/lp.commitment)+" called"},
+            {l:"Distributed", v:fmt(lp.distributions),sub:"Returned to LP", color:"#86EFAC"},
+            {l:"Current NAV", v:fmt(lp.nav),          sub:"Estimated value"},
+            {l:"TVPI",        v:fmtX(tvpi),           sub:"Total value multiple", color:tvpi>=2?"#86EFAC":tvpi>=1?"#E8C9A8":"#FCA5A5"},
+          ].map((m,i)=>(
+            <div key={i} style={{padding:"14px 16px", background:"rgba(0,0,0,0.2)"}}>
+              <div style={{fontSize:9, color:"rgba(255,255,255,0.35)", marginBottom:6, letterSpacing:"0.06em", textTransform:"uppercase"}}>{m.l}</div>
+              <div style={{fontSize:18, fontWeight:600, color:m.color||"#F1EFE8", fontVariantNumeric:"tabular-nums"}}>{m.v}</div>
+              <div style={{fontSize:10, color:"rgba(255,255,255,0.35)", marginTop:4}}>{m.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={S.grid2}>
+        <div style={S.card}>
+          <div style={S.secH}>Performance metrics</div>
+          {[
+            {l:"TVPI (Total Value / Paid-In)",    v:fmtX(tvpi), desc:"For every $1 invested, current total value"},
+            {l:"DPI (Distributions / Paid-In)",   v:fmtX(dpi),  desc:"Capital already returned to you"},
+            {l:"RVPI (Residual Value / Paid-In)", v:fmtX(rvpi), desc:"Unrealized value remaining in fund"},
+            {l:"Fund ownership (by capital)",     v:pct(ownershipPct), desc:"Your share of total LP contributions"},
+          ].map((m,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"0.5px solid var(--color-border-tertiary)"}}>
+              <div>
+                <div style={{fontSize:12, fontWeight:500}}>{m.l}</div>
+                <div style={{fontSize:10, color:"var(--color-text-tertiary)", marginTop:2}}>{m.desc}</div>
+              </div>
+              <div style={{fontSize:16, fontWeight:600, color:m.l.includes("TVPI")?(tvpi>=1?"#10B981":"#EF4444"):"var(--color-text-primary)", fontVariantNumeric:"tabular-nums"}}>{m.v}</div>
+            </div>
+          ))}
+        </div>
+        <div style={S.card}>
+          <div style={S.secH}>Capital account statement</div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11, color:"var(--color-text-tertiary)", marginBottom:8}}>Capital calls</div>
+            {capitalCalls.map((c,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"0.5px solid var(--color-border-tertiary)",fontSize:12}}>
+                <span style={{color:"var(--color-text-secondary)"}}>{fmtDate(c.date)} · {c.label}</span>
+                <span style={{color:"#EF4444",fontVariantNumeric:"tabular-nums"}}>({fmt(c.lpAmount)})</span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div style={{fontSize:11, color:"var(--color-text-tertiary)", marginBottom:8}}>Distributions received</div>
+            {distributions.map((c,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"0.5px solid var(--color-border-tertiary)",fontSize:12}}>
+                <span style={{color:"var(--color-text-secondary)"}}>{fmtDate(c.date)} · {c.label}</span>
+                <span style={{color:"#10B981",fontVariantNumeric:"tabular-nums"}}>{fmt(c.lpAmount)}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",padding:"12px 0 0",marginTop:4,fontSize:13,fontWeight:600}}>
+            <span>Net capital account</span>
+            <span style={{fontVariantNumeric:"tabular-nums"}}>{fmt(lp.nav)}</span>
+          </div>
+        </div>
+      </div>
+      <div style={S.card}>
+        <div style={S.secH}>Fund overview</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+          {[
+            {l:"Fund TVPI",    v:fmtX(metrics.tvpi),    sub:"Gross"},
+            {l:"Fund DPI",     v:fmtX(metrics.dpi),     sub:"Gross"},
+            {l:"Gross IRR",    v:pct(metrics.grossIRR),  sub:"Since inception"},
+            {l:"Active cos",   v:portfolio.filter(p=>p.status==="active").length, sub:"Active investments"},
+          ].map((m,i)=>(
+            <div key={i} style={{padding:"12px",background:"var(--color-background-secondary)",borderRadius:8}}>
+              <div style={{fontSize:10,color:"var(--color-text-tertiary)",marginBottom:4}}>{m.l}</div>
+              <div style={{fontSize:18,fontWeight:600,color:"var(--color-text-primary)"}}>{m.v}</div>
+              <div style={{fontSize:10,color:"var(--color-text-tertiary)",marginTop:2}}>{m.sub}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{marginTop:14,padding:"12px",background:"#FAF7F3",borderRadius:8,fontSize:11,color:"var(--color-text-tertiary)",lineHeight:1.7}}>
+          This statement is provided for informational purposes only and is based on unaudited estimates. Past performance is not indicative of future results. NAV figures represent the GP's estimate of fair value and may differ from amounts realized upon sale. Please refer to the fund's audited financial statements and limited partnership agreement for definitive figures.
+        </div>
+      </div>
+    </div>
+  );
+};
+
+  const VIEWS = { overview:<Overview/>, portfolio:<Portfolio/>, lps:<LPView/>, metrics:<Metrics/>, documents:<Documents/>, lpportal:<LPPortal/> };
 
   return (
     <div style={S.page}>
