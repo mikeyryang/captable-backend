@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from "recharts";
 import { LayoutGrid, Building2, Users, TrendingUp, FileText, ChevronRight, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 
@@ -88,14 +88,73 @@ function calcIRR(cashflows) {
 // ═══════════════════════════════════════════════════════
 
 export default function FundDashboard() {
+  const [portfolio, setPortfolio] = useState(() => {
+    const saved = localStorage.getItem("vk_portfolio");
+    return saved ? JSON.parse(saved) : PORTFOLIO;
+  });
+  const [lps, setLps] = useState(() => {
+    const saved = localStorage.getItem("vk_lps");
+    return saved ? JSON.parse(saved) : LPS;
+  });
+  const [showAddCompany, setShowAddCompany] = useState(false);
+  const [showAddLP, setShowAddLP] = useState(false);
+  const [editingMark, setEditingMark] = useState(null);
+  const [companyForm, setCompanyForm] = useState({ name:"", sector:"", stage:"Seed", invested:"", ownership:"", currentMark:"", date:"" });
+  const [lpForm, setLpForm] = useState({ name:"", type:"Family Office", commitment:"", contributed:"", distributions:"0", nav:"" });
+
+  useEffect(() => { localStorage.setItem("vk_portfolio", JSON.stringify(portfolio)); }, [portfolio]);
+  useEffect(() => { localStorage.setItem("vk_lps", JSON.stringify(lps)); }, [lps]);
   const [view, setView] = useState("overview");
   const [selectedCompany, setSelectedCompany] = useState(null);
+
+  function handleAddCompany() {
+  if (!companyForm.name || !companyForm.invested) return;
+  const invested = parseFloat(companyForm.invested);
+  const mark = parseFloat(companyForm.currentMark) || invested;
+  setPortfolio(prev => [...prev, {
+    id: "pc"+Date.now(),
+    name: companyForm.name,
+    sector: companyForm.sector || "Other",
+    stage: companyForm.stage,
+    invested,
+    ownership: parseFloat(companyForm.ownership) || 0,
+    currentMark: mark,
+    date: companyForm.date || new Date().toISOString().slice(0,10),
+    status: "active",
+    moic: mark / invested,
+  }]);
+  setCompanyForm({ name:"", sector:"", stage:"Seed", invested:"", ownership:"", currentMark:"", date:"" });
+  setShowAddCompany(false);
+}
+
+function handleAddLP() {
+  if (!lpForm.name || !lpForm.commitment) return;
+  setLps(prev => [...prev, {
+    id: "lp"+Date.now(),
+    name: lpForm.name,
+    type: lpForm.type,
+    commitment: parseFloat(lpForm.commitment),
+    contributed: parseFloat(lpForm.contributed) || 0,
+    distributions: parseFloat(lpForm.distributions) || 0,
+    nav: parseFloat(lpForm.nav) || 0,
+  }]);
+  setLpForm({ name:"", type:"Family Office", commitment:"", contributed:"", distributions:"0", nav:"" });
+  setShowAddLP(false);
+}
+
+function handleUpdateMark(id, newMark) {
+  setPortfolio(prev => prev.map(p => p.id === id
+    ? { ...p, currentMark: parseFloat(newMark), moic: parseFloat(newMark) / p.invested }
+    : p
+  ));
+  setEditingMark(null);
+}
 
   const metrics = useMemo(() => {
     const paidIn        = CASHFLOWS.filter(c => c.type === "call").reduce((a,c) => a + Math.abs(c.amount), 0);
     const distributions = CASHFLOWS.filter(c => c.type === "dist").reduce((a,c) => a + c.amount, 0);
-    const unrealized    = PORTFOLIO.filter(p => p.status === "active").reduce((a,p) => a + p.currentMark, 0);
-    const realized      = PORTFOLIO.filter(p => p.status === "exited").reduce((a,p) => a + (p.realized||0), 0);
+    const unrealized    = portfolio.filter(p => p.status === "active").reduce((a,p) => a + p.currentMark, 0);
+    const realized      = portfolio.filter(p => p.status === "exited").reduce((a,p) => a + (p.realized||0), 0);
     const totalValue    = unrealized + distributions;
     const tvpi          = totalValue / paidIn;
     const dpi           = distributions / paidIn;
@@ -116,12 +175,12 @@ export default function FundDashboard() {
   }, []);
 
   const lpMetrics = useMemo(() => {
-    const totalCommitted    = LPS.reduce((a,l) => a + l.commitment, 0);
-    const totalContributed  = LPS.reduce((a,l) => a + l.contributed, 0);
-    const totalDistributed  = LPS.reduce((a,l) => a + l.distributions, 0);
-    const totalNAV          = LPS.reduce((a,l) => a + l.nav, 0);
+    const totalCommitted    = lps.reduce((a,l) => a + l.commitment, 0);
+    const totalContributed  = lps.reduce((a,l) => a + l.contributed, 0);
+    const totalDistributed  = lps.reduce((a,l) => a + l.distributions, 0);
+    const totalNAV          = lps.reduce((a,l) => a + l.nav, 0);
     return { totalCommitted, totalContributed, totalDistributed, totalNAV };
-  }, []);
+  }, [lps]);
 
   // ── Shared Styles ─────────────────────────────────────
   const S = {
@@ -169,7 +228,7 @@ export default function FundDashboard() {
   // ═══════════════════════════════════
   const Overview = () => {
     const sectorMap = {};
-    PORTFOLIO.forEach(p => { sectorMap[p.sector] = (sectorMap[p.sector]||0) + (p.currentMark || p.realized || 0); });
+    portfolio.forEach(p => { sectorMap[p.sector] = (sectorMap[p.sector]||0) + (p.currentMark || p.realized || 0); });
     const sectorData = Object.entries(sectorMap).map(([name,value]) => ({ name, value }));
     const COLORS = ["#C8915A","#2A1D16","#E8C9A8","#8B6344","#D4A97A","#6B4C32","#F0D9C0","#4A3020"];
     return (
@@ -179,7 +238,7 @@ export default function FundDashboard() {
             { h:"Fund Size",          v:fmt(FUND.size),           sub:`${fmt(metrics.paidIn)} called · ${fmt(metrics.remaining)} remaining` },
             { h:"Total NAV",          v:fmt(metrics.unrealized),  sub:"Unrealized portfolio value" },
             { h:"Distributions",      v:fmt(metrics.distributions), sub:"Total returned to LPs" },
-            { h:"Portfolio Cos.",     v:PORTFOLIO.length,          sub:`${PORTFOLIO.filter(p=>p.status==="active").length} active · ${PORTFOLIO.filter(p=>p.status==="exited").length} exited` },
+            { h:"Portfolio Cos.",     v:portfolio.length,          sub:`${portfolio.filter(p=>p.status==="active").length} active · ${portfolio.filter(p=>p.status==="exited").length} exited` },
           ].map((m,i) => (
             <div key={i} style={S.card}>
               <div style={S.cardH}>{m.h}</div>
@@ -245,7 +304,7 @@ export default function FundDashboard() {
               <tr>{["Company","Sector","Invested","Current Mark","MOIC","Status"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
             </thead>
             <tbody>
-              {PORTFOLIO.slice(0,5).map((p,i) => (
+              {portfolio.slice(0,5).map((p,i) => (
                 <tr key={p.id} style={{...S.trHover, background: i%2===0?"transparent":"#FAF7F3"}} onClick={()=>{setSelectedCompany(p);setView("portfolio");}}>
                   <td style={{...S.td,fontWeight:500}}>{p.name}</td>
                   <td style={S.td}><span style={S.tag}>{p.sector}</span></td>
@@ -258,7 +317,7 @@ export default function FundDashboard() {
             </tbody>
           </table>
           <button onClick={()=>setView("portfolio")} style={{marginTop:12,fontSize:12,padding:"6px 14px",border:"0.5px solid var(--color-border-secondary)",borderRadius:6,background:"transparent",color:"var(--color-text-secondary)",cursor:"pointer"}}>
-            View all {PORTFOLIO.length} companies →
+            View all {portfolio.length} companies →
           </button>
         </div>
       </div>
@@ -313,15 +372,18 @@ export default function FundDashboard() {
 
     return (
       <div>
-        <div style={S.pageTitle}>Portfolio Companies</div>
-        <div style={S.pageSub}>{PORTFOLIO.length} investments · {PORTFOLIO.filter(p=>p.status==="active").length} active · {fmt(PORTFOLIO.reduce((a,p)=>a+p.invested,0))} deployed</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+          <div style={S.pageTitle}>Portfolio Companies</div>
+          <button onClick={()=>setShowAddCompany(true)} style={{padding:"8px 18px",background:"#2A1D16",color:"#E8C9A8",border:"none",borderRadius:8,fontSize:13,cursor:"pointer",fontWeight:500}}>+ Add Company</button>
+        </div>
+        <div style={S.pageSub}>{portfolio.length} investments · {portfolio.filter(p=>p.status==="active").length} active · {fmt(portfolio.reduce((a,p)=>a+p.invested,0))} deployed</div>
         <div style={{...S.card,padding:0,overflow:"hidden"}}>
           <table style={S.tbl}>
             <thead style={{background:"var(--color-background-secondary)"}}>
               <tr>{["Company","Sector","Stage","Invested","Current Mark","MOIC","Ownership","Status"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
             </thead>
             <tbody>
-              {PORTFOLIO.map((p,i)=>(
+              {portfolio.map((p,i)=>(
                 <tr key={p.id} onClick={()=>setSelectedCompany(p)} style={{...S.trHover,background:i%2===0?"#fff":"#FAF7F3"}}>
                   <td style={{...S.td,fontWeight:500}}>{p.name}</td>
                   <td style={S.td}><span style={S.tag}>{p.sector.split(" / ")[0]}</span></td>
@@ -345,8 +407,11 @@ export default function FundDashboard() {
   // ═══════════════════════════════════
   const LPView = () => (
     <div>
-      <div style={S.pageTitle}>LP Management</div>
-      <div style={S.pageSub}>{LPS.length} limited partners · {fmt(lpMetrics.totalCommitted)} committed · {fmt(lpMetrics.totalContributed)} contributed</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <div style={S.pageTitle}>LP Management</div>
+        <button onClick={()=>setShowAddLP(true)} style={{padding:"8px 18px",background:"#2A1D16",color:"#E8C9A8",border:"none",borderRadius:8,fontSize:13,cursor:"pointer",fontWeight:500}}>+ Add LP</button>
+      </div>
+      <div style={S.pageSub}>{lps.length} limited partners · {fmt(lpMetrics.totalCommitted)} committed · {fmt(lpMetrics.totalContributed)} contributed</div>
       <div style={S.grid4}>
         {[
           {h:"Total Committed",   v:fmt(lpMetrics.totalCommitted),   sub:"Across all LPs"},
@@ -367,7 +432,7 @@ export default function FundDashboard() {
             <tr>{["LP Name","Type","Commitment","Contributed","Distributions","Current NAV","TVPI"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
           </thead>
           <tbody>
-            {LPS.map((lp,i)=>{
+            {lps.map((lp,i)=>{
               const tvpi = (lp.nav + lp.distributions) / lp.contributed;
               return (
                 <tr key={lp.id} style={{background:i%2===0?"#fff":"#FAF7F3"}}>
@@ -524,10 +589,10 @@ export default function FundDashboard() {
       </div>
       <div style={{...S.card,background:"var(--color-background-secondary)",border:"0.5px dashed var(--color-border-secondary)"}}>
         <div style={{fontSize:12,fontWeight:500,marginBottom:4,color:"var(--color-text-secondary)"}}>K-1 Generation</div>
-        <div style={{fontSize:11,color:"var(--color-text-tertiary)",lineHeight:1.6,marginBottom:12}}>Generate Schedule K-1 for all {LPS.length} LPs for the 2024 tax year. Each K-1 will include allocated ordinary income, capital gains, deductions, and each LP's ending capital account balance.</div>
+        <div style={{fontSize:11,color:"var(--color-text-tertiary)",lineHeight:1.6,marginBottom:12}}>Generate Schedule K-1 for all {lps.length} LPs for the 2024 tax year. Each K-1 will include allocated ordinary income, capital gains, deductions, and each LP's ending capital account balance.</div>
         <div style={{display:"flex",gap:8}}>
           <button style={{fontSize:12,padding:"8px 18px",background:"#2A1D16",color:"#E8C9A8",border:"none",borderRadius:8,cursor:"pointer",fontWeight:500}}>
-            Generate all K-1s ({LPS.length} LPs) →
+            Generate all K-1s ({lps.length} LPs) →
           </button>
           <button style={{fontSize:12,padding:"8px 18px",background:"transparent",color:"var(--color-text-secondary)",border:"0.5px solid var(--color-border-secondary)",borderRadius:8,cursor:"pointer"}}>
             Preview template
@@ -565,8 +630,8 @@ export default function FundDashboard() {
             {[
               {l:"Size",    v:fmt(FUND.size)},
               {l:"Called",  v:pct(metrics.paidIn/FUND.size)},
-              {l:"LPs",     v:LPS.length},
-              {l:"Companies",v:PORTFOLIO.length},
+              {l:"LPs",     v:lps.length},
+              {l:"Companies",v:portfolio.length},
             ].map(r=>(
               <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"0.5px solid rgba(255,255,255,0.05)",fontSize:11}}>
                 <span style={{color:"rgba(255,255,255,0.35)"}}>{r.l}</span>
@@ -580,6 +645,76 @@ export default function FundDashboard() {
         <div style={S.main}>
           {VIEWS[view]}
         </div>
+            {/* Add Company Modal */}
+{showAddCompany && (
+  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAddCompany(false)}>
+    <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxWidth:"90vw"}} onClick={e=>e.stopPropagation()}>
+      <div style={{fontSize:16,fontWeight:600,marginBottom:20}}>Add Portfolio Company</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        {[
+          {label:"Company name *",    key:"name",        type:"text",   placeholder:"e.g. Acme Corp"},
+          {label:"Sector",            key:"sector",      type:"text",   placeholder:"e.g. Deep Tech"},
+          {label:"Invested ($) *",    key:"invested",    type:"number", placeholder:"e.g. 2000000"},
+          {label:"Current mark ($)",  key:"currentMark", type:"number", placeholder:"Leave blank = cost"},
+          {label:"Ownership (%)",     key:"ownership",   type:"number", placeholder:"e.g. 8.5"},
+          {label:"Investment date",   key:"date",        type:"date",   placeholder:""},
+        ].map(f=>(
+          <div key={f.key}>
+            <label style={{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",display:"block",marginBottom:4}}>{f.label}</label>
+            <input type={f.type} placeholder={f.placeholder} value={companyForm[f.key]} onChange={e=>setCompanyForm(p=>({...p,[f.key]:e.target.value}))}
+              style={{width:"100%",padding:"8px 10px",border:"0.5px solid var(--color-border-secondary)",borderRadius:8,fontSize:13,boxSizing:"border-box",outline:"none"}}/>
+          </div>
+        ))}
+        <div>
+          <label style={{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",display:"block",marginBottom:4}}>Stage</label>
+          <select value={companyForm.stage} onChange={e=>setCompanyForm(p=>({...p,stage:e.target.value}))}
+            style={{width:"100%",padding:"8px 10px",border:"0.5px solid var(--color-border-secondary)",borderRadius:8,fontSize:13,boxSizing:"border-box",outline:"none",background:"#fff"}}>
+            {["Pre-Seed","Seed","Series A","Series B","Series C","Growth","Exited"].map(s=><option key={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:20}}>
+        <button onClick={()=>setShowAddCompany(false)} style={{padding:"8px 16px",border:"0.5px solid var(--color-border-secondary)",borderRadius:8,background:"transparent",fontSize:13,cursor:"pointer"}}>Cancel</button>
+        <button onClick={handleAddCompany} style={{padding:"8px 18px",background:"#2A1D16",color:"#E8C9A8",border:"none",borderRadius:8,fontSize:13,cursor:"pointer",fontWeight:500}}>Add Company →</button>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* Add LP Modal */}
+{showAddLP && (
+  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAddLP(false)}>
+    <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxWidth:"90vw"}} onClick={e=>e.stopPropagation()}>
+      <div style={{fontSize:16,fontWeight:600,marginBottom:20}}>Add Limited Partner</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        {[
+          {label:"LP Name *",           key:"name",          type:"text",   placeholder:"e.g. Greenwood Endowment"},
+          {label:"Commitment ($) *",    key:"commitment",    type:"number", placeholder:"e.g. 10000000"},
+          {label:"Contributed ($)",     key:"contributed",   type:"number", placeholder:"e.g. 8000000"},
+          {label:"Distributions ($)",   key:"distributions", type:"number", placeholder:"e.g. 1000000"},
+          {label:"Current NAV ($)",     key:"nav",           type:"number", placeholder:"e.g. 12000000"},
+        ].map(f=>(
+          <div key={f.key}>
+            <label style={{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",display:"block",marginBottom:4}}>{f.label}</label>
+            <input type={f.type} placeholder={f.placeholder} value={lpForm[f.key]} onChange={e=>setLpForm(p=>({...p,[f.key]:e.target.value}))}
+              style={{width:"100%",padding:"8px 10px",border:"0.5px solid var(--color-border-secondary)",borderRadius:8,fontSize:13,boxSizing:"border-box",outline:"none"}}/>
+          </div>
+        ))}
+        <div>
+          <label style={{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",display:"block",marginBottom:4}}>LP Type</label>
+          <select value={lpForm.type} onChange={e=>setLpForm(p=>({...p,type:e.target.value}))}
+            style={{width:"100%",padding:"8px 10px",border:"0.5px solid var(--color-border-secondary)",borderRadius:8,fontSize:13,boxSizing:"border-box",outline:"none",background:"#fff"}}>
+            {["Family Office","Endowment","Pension Fund","Individual","Corporate","Sovereign Wealth","Fund of Funds"].map(t=><option key={t}>{t}</option>)}
+          </select>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:20}}>
+        <button onClick={()=>setShowAddLP(false)} style={{padding:"8px 16px",border:"0.5px solid var(--color-border-secondary)",borderRadius:8,background:"transparent",fontSize:13,cursor:"pointer"}}>Cancel</button>
+        <button onClick={handleAddLP} style={{padding:"8px 18px",background:"#2A1D16",color:"#E8C9A8",border:"none",borderRadius:8,fontSize:13,cursor:"pointer",fontWeight:500}}>Add LP →</button>
+      </div>
+    </div>
+  </div>
+)}
       </div>
     </div>
   );
