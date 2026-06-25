@@ -131,7 +131,7 @@ export default function FundDashboard() {
     const tvpi=totalValue/paidIn,dpi=distributions/paidIn,rvpi=unrealized/paidIn;
     const mgmtFees=paidIn*0.02*3,carry=Math.max(0,(totalValue-paidIn)*0.20);
     const netTvpi=(totalValue-mgmtFees-carry)/paidIn;
-    const irrFlows=[...CASHFLOWS,{ date: new Date().toISOString().slice(0,10), amount: unrealized, type:"terminal" } ];
+    const irrFlows=[...CASHFLOWS,{date:new Date().toISOString().slice(0,10),amount:unrealized,type:"terminal"}];
     const grossIRR=calcIRR(irrFlows),netIRR=grossIRR*0.85;
     return {paidIn,distributions,unrealized,totalValue,tvpi,dpi,rvpi,netTvpi,grossIRR,netIRR,committed:FUND.size,remaining:FUND.size-paidIn,mgmtFees,carry};
   },[portfolio]);
