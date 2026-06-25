@@ -1,14 +1,15 @@
-import { useState, useMemo, useEffect } from "react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from "recharts";
-import { LayoutGrid, Building2, Users, TrendingUp, FileText, UserCircle } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from "recharts";
+import { LayoutGrid, Building2, Users, TrendingUp, FileText, UserCircle, Calendar } from "lucide-react";
 
 const FUND = {
-  name: "Valkyrie Fund I",
-  vintage: 2021,
-  size: 50000000,
-  strategy: "Early Stage Technology",
-  manager: "Valkyrie Capital",
+  name: "Valkyrie Fund I", vintage: 2021, size: 50000000,
+  strategy: "Early Stage Technology", manager: "Valkyrie Capital",
+  ein: "82-4721039", address: "c/o Valkyrie Capital", city: "San Francisco, CA 94105",
 };
+
+const CURRENT_YEAR = new Date().getFullYear();
+const TAX_YEARS = Array.from({ length: CURRENT_YEAR - FUND.vintage + 1 }, (_, i) => FUND.vintage + i);
 
 const PORTFOLIO = [
   { id:"pc1", name:"Mohan",       sector:"Deep Tech / Mining AI", invested:2000000, ownership:8.5,  currentMark:8000000, stage:"Series A", date:"2022-03-15", status:"active", moic:4.0 },
@@ -22,11 +23,11 @@ const PORTFOLIO = [
 ];
 
 const LPS = [
-  { id:"lp1", name:"Greenwood University Endowment", type:"Endowment",     commitment:15000000, contributed:12000000, distributions:2400000, nav:18000000 },
-  { id:"lp2", name:"Harborview Family Office",       type:"Family Office",  commitment:10000000, contributed:8000000,  distributions:1600000, nav:12000000 },
-  { id:"lp3", name:"Pacific Pension Fund",           type:"Pension Fund",   commitment:12000000, contributed:9600000,  distributions:1920000, nav:14400000 },
-  { id:"lp4", name:"James R. Whitfield III",         type:"Individual",     commitment:5000000,  contributed:4000000,  distributions:800000,  nav:6000000  },
-  { id:"lp5", name:"Apex Corporate Ventures",        type:"Corporate",      commitment:8000000,  contributed:6400000,  distributions:1280000, nav:9600000  },
+  { id:"lp1", name:"Greenwood University Endowment", type:"Endowment",    commitment:15000000, contributed:6900000,  distributions:2400000, nav:8700000  },
+  { id:"lp2", name:"Harborview Family Office",       type:"Family Office", commitment:10000000, contributed:4600000,  distributions:1600000, nav:5800000  },
+  { id:"lp3", name:"Pacific Pension Fund",           type:"Pension Fund",  commitment:12000000, contributed:5520000,  distributions:1920000, nav:6960000  },
+  { id:"lp4", name:"James R. Whitfield III",         type:"Individual",    commitment:5000000,  contributed:2300000,  distributions:800000,  nav:2900000  },
+  { id:"lp5", name:"Apex Corporate Ventures",        type:"Corporate",     commitment:8000000,  contributed:3680000,  distributions:1280000, nav:4640000  },
 ];
 
 const CASHFLOWS = [
@@ -47,14 +48,26 @@ const QUARTERLY = [
   { q:"Q1 2024", nav:43000000, tvpi:1.68 },{ q:"Q2 2024", nav:47000000, tvpi:1.78 },
 ];
 
-const fmt   = n => n>=1e6?"$"+(n/1e6).toFixed(1)+"M":n>=1e3?"$"+(n/1e3).toFixed(0)+"K":"$"+n.toLocaleString();
-const pct   = n => (n*100).toFixed(1)+"%";
-const fmtX  = n => n.toFixed(2)+"x";
-const fmtDate = d => new Date(d).toLocaleDateString("en-US",{month:"short",year:"numeric"});
+const HISTORICAL_METRICS = [
+  { year:2021, tvpi:0.88, dpi:0.00, rvpi:0.88, irr:-4.2, nav:18000000,  paidIn:8000000,  distributions:0,       carry:0 },
+  { year:2022, tvpi:1.18, dpi:0.00, rvpi:1.18, irr:12.4, nav:29000000,  paidIn:19000000, distributions:0,       carry:0 },
+  { year:2023, tvpi:1.52, dpi:0.20, rvpi:1.32, irr:18.7, nav:37000000,  paidIn:23000000, distributions:4600000, carry:1840000 },
+  { year:2024, tvpi:1.67, dpi:0.35, rvpi:1.32, irr:22.6, nav:29000000,  paidIn:23000000, distributions:8000000, carry:3040000 },
+  { year:2025, tvpi:null, dpi:null, rvpi:null,  irr:null, nav:null,      paidIn:23000000, distributions:null,    carry:null },
+  { year:2026, tvpi:null, dpi:null, rvpi:null,  irr:null, nav:null,      paidIn:23000000, distributions:null,    carry:null },
+];
+
+const fmt    = n => n==null?"—":n>=1e6?"$"+(n/1e6).toFixed(1)+"M":n>=1e3?"$"+(n/1e3).toFixed(0)+"K":"$"+n.toLocaleString();
+const pct    = n => (n*100).toFixed(1)+"%";
+const fmtX   = n => n==null?"—":n.toFixed(2)+"x";
+const fmtDate= d => new Date(d).toLocaleDateString("en-US",{month:"short",year:"numeric"});
+const d$     = n => !n||n===0?"":"$"+Math.round(n).toLocaleString("en-US");
+const dParen = n => !n||n===0?"":"$("+Math.round(Math.abs(n)).toLocaleString("en-US")+")";
+const dash   = v => v==null ? <span style={{color:"#A89A8C"}}>—</span> : v;
 
 function calcIRR(cashflows) {
-  let rate = 0.15;
-  for (let i=0;i<100;i++) {
+  let rate=0.15;
+  for(let i=0;i<100;i++){
     let npv=0,dnpv=0;
     const t0=new Date(cashflows[0].date).getTime();
     cashflows.forEach(cf=>{
@@ -72,6 +85,8 @@ function calcIRR(cashflows) {
 export default function FundDashboard() {
   const [portfolio, setPortfolio] = useState(()=>{ const s=localStorage.getItem("vk_portfolio"); return s?JSON.parse(s):PORTFOLIO; });
   const [lps, setLps]             = useState(()=>{ const s=localStorage.getItem("vk_lps");       return s?JSON.parse(s):LPS; });
+  const [taxYear, setTaxYear]     = useState(()=>parseInt(localStorage.getItem("vk_taxYear"))||CURRENT_YEAR);
+  const [k1Data, setK1Data]       = useState(()=>{ const s=localStorage.getItem("vk_k1data");    return s?JSON.parse(s):{}; });
   const [view, setView]           = useState("overview");
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [showAddCompany, setShowAddCompany]   = useState(false);
@@ -82,6 +97,16 @@ export default function FundDashboard() {
 
   useEffect(()=>{ localStorage.setItem("vk_portfolio",JSON.stringify(portfolio)); },[portfolio]);
   useEffect(()=>{ localStorage.setItem("vk_lps",JSON.stringify(lps)); },[lps]);
+  useEffect(()=>{ localStorage.setItem("vk_taxYear",String(taxYear)); },[taxYear]);
+  useEffect(()=>{ localStorage.setItem("vk_k1data",JSON.stringify(k1Data)); },[k1Data]);
+
+  const saveK1Field = useCallback((lpId,field,value)=>{
+    setK1Data(prev=>({...prev,[taxYear]:{...(prev[taxYear]||{}),[lpId]:{...(prev[taxYear]?.[lpId]||{}),[field]:value}}}));
+  },[taxYear]);
+
+  const getK1Field = useCallback((lpId,field,fallback="")=>{
+    return k1Data?.[taxYear]?.[lpId]?.[field]??fallback;
+  },[k1Data,taxYear]);
 
   function handleAddCompany() {
     if(!companyForm.name||!companyForm.invested)return;
@@ -97,20 +122,17 @@ export default function FundDashboard() {
     setLpForm({name:"",type:"Family Office",commitment:"",contributed:"",distributions:"0",nav:""});
     setShowAddLP(false);
   }
-  function handleUpdateMark(id,newMark) {
-    setPortfolio(prev=>prev.map(p=>p.id===id?{...p,currentMark:parseFloat(newMark),moic:parseFloat(newMark)/p.invested}:p));
-  }
 
   const metrics = useMemo(()=>{
     const paidIn=CASHFLOWS.filter(c=>c.type==="call").reduce((a,c)=>a+Math.abs(c.amount),0);
     const distributions=CASHFLOWS.filter(c=>c.type==="dist").reduce((a,c)=>a+c.amount,0);
     const unrealized=portfolio.filter(p=>p.status==="active").reduce((a,p)=>a+p.currentMark,0);
     const totalValue=unrealized+distributions;
-    const tvpi=totalValue/paidIn, dpi=distributions/paidIn, rvpi=unrealized/paidIn;
-    const mgmtFees=paidIn*0.02*3, carry=Math.max(0,(totalValue-paidIn)*0.20);
+    const tvpi=totalValue/paidIn,dpi=distributions/paidIn,rvpi=unrealized/paidIn;
+    const mgmtFees=paidIn*0.02*3,carry=Math.max(0,(totalValue-paidIn)*0.20);
     const netTvpi=(totalValue-mgmtFees-carry)/paidIn;
-    const irrFlows=[...CASHFLOWS,{date:new Date().toISOString().slice(0,10),amount:unrealized+distributions,type:"terminal"}];
-    const grossIRR=calcIRR(irrFlows), netIRR=grossIRR*0.85;
+    const irrFlows=[...CASHFLOWS,{ date: new Date().toISOString().slice(0,10), amount: unrealized, type:"terminal" } ];
+    const grossIRR=calcIRR(irrFlows),netIRR=grossIRR*0.85;
     return {paidIn,distributions,unrealized,totalValue,tvpi,dpi,rvpi,netTvpi,grossIRR,netIRR,committed:FUND.size,remaining:FUND.size-paidIn,mgmtFees,carry};
   },[portfolio]);
 
@@ -122,32 +144,33 @@ export default function FundDashboard() {
   }),[lps]);
 
   const S = {
-    page:    {padding:"24px",maxWidth:1200,margin:"0 auto"},
-    layout:  {display:"flex",gap:20,alignItems:"flex-start"},
-    sidebar: {width:200,flexShrink:0,background:"#2A1D16",borderRadius:12,padding:"16px 0",position:"sticky",top:60},
-    sbLabel: {fontSize:9.5,color:"rgba(255,255,255,0.28)",letterSpacing:".08em",textTransform:"uppercase",padding:"0 16px",marginBottom:6,marginTop:12},
-    sbItem:  (a)=>({display:"flex",alignItems:"center",gap:9,padding:"9px 16px",fontSize:12.5,cursor:"pointer",color:a?"#E8C9A8":"rgba(255,255,255,0.48)",background:a?"rgba(200,145,90,0.14)":"transparent",borderLeft:a?"2px solid #C8915A":"2px solid transparent",transition:"all .12s",userSelect:"none"}),
-    main:    {flex:1,minWidth:0},
-    grid4:   {display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16},
-    grid3:   {display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16},
-    grid2:   {display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14},
-    card:    {background:"#fff",border:"0.5px solid var(--color-border-tertiary)",borderRadius:10,padding:"14px 16px",marginBottom:12},
-    cardH:   {fontSize:11,color:"var(--color-text-secondary)",marginBottom:3,fontWeight:500},
-    cardV:   {fontSize:22,fontWeight:500,color:"var(--color-text-primary)",fontVariantNumeric:"tabular-nums"},
-    cardSub: {fontSize:11,color:"var(--color-text-tertiary)",marginTop:2},
-    secH:    {fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",marginBottom:12,letterSpacing:".02em",textTransform:"uppercase"},
-    tbl:     {width:"100%",borderCollapse:"collapse",fontSize:12},
-    th:      {padding:"8px 12px",textAlign:"left",color:"var(--color-text-secondary)",fontWeight:500,borderBottom:"0.5px solid var(--color-border-tertiary)",fontSize:11,whiteSpace:"nowrap"},
-    td:      {padding:"10px 12px",color:"var(--color-text-primary)",borderBottom:"0.5px solid var(--color-border-tertiary)",verticalAlign:"middle"},
-    trHover: {cursor:"pointer",transition:"background .1s"},
-    badge:   (c)=>({fontSize:10,padding:"2px 8px",borderRadius:4,fontWeight:500,background:c+"18",color:c}),
-    tag:     {fontSize:10,padding:"2px 8px",borderRadius:4,background:"var(--color-background-secondary)",color:"var(--color-text-tertiary)",border:"0.5px solid var(--color-border-tertiary)"},
-    moicUp:  {color:"#10B981",fontWeight:500},
-    moicFlat:{color:"#F59E0B",fontWeight:500},
-    moicDown:{color:"#EF4444",fontWeight:500},
+    page:     {padding:"24px",maxWidth:1200,margin:"0 auto"},
+    layout:   {display:"flex",gap:20,alignItems:"flex-start"},
+    sidebar:  {width:200,flexShrink:0,background:"#2A1D16",borderRadius:12,padding:"16px 0",position:"sticky",top:60},
+    sbLabel:  {fontSize:9.5,color:"rgba(255,255,255,0.28)",letterSpacing:".08em",textTransform:"uppercase",padding:"0 16px",marginBottom:6,marginTop:12},
+    sbItem:   (a)=>({display:"flex",alignItems:"center",gap:9,padding:"9px 16px",fontSize:12.5,cursor:"pointer",color:a?"#E8C9A8":"rgba(255,255,255,0.48)",background:a?"rgba(200,145,90,0.14)":"transparent",borderLeft:a?"2px solid #C8915A":"2px solid transparent",transition:"all .12s",userSelect:"none"}),
+    main:     {flex:1,minWidth:0},
+    grid4:    {display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16},
+    grid3:    {display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16},
+    grid2:    {display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14},
+    card:     {background:"#fff",border:"0.5px solid var(--color-border-tertiary)",borderRadius:10,padding:"14px 16px",marginBottom:12},
+    cardH:    {fontSize:11,color:"var(--color-text-secondary)",marginBottom:3,fontWeight:500},
+    cardV:    {fontSize:22,fontWeight:500,color:"var(--color-text-primary)",fontVariantNumeric:"tabular-nums"},
+    cardSub:  {fontSize:11,color:"var(--color-text-tertiary)",marginTop:2},
+    secH:     {fontSize:12,fontWeight:600,color:"var(--color-text-secondary)",marginBottom:12,letterSpacing:".02em",textTransform:"uppercase"},
+    tbl:      {width:"100%",borderCollapse:"collapse",fontSize:12},
+    th:       {padding:"8px 12px",textAlign:"left",color:"var(--color-text-secondary)",fontWeight:500,borderBottom:"0.5px solid var(--color-border-tertiary)",fontSize:11,whiteSpace:"nowrap"},
+    td:       {padding:"10px 12px",color:"var(--color-text-primary)",borderBottom:"0.5px solid var(--color-border-tertiary)",verticalAlign:"middle"},
+    trHover:  {cursor:"pointer",transition:"background .1s"},
+    badge:    (c)=>({fontSize:10,padding:"2px 8px",borderRadius:4,fontWeight:500,background:c+"18",color:c}),
+    tag:      {fontSize:10,padding:"2px 8px",borderRadius:4,background:"var(--color-background-secondary)",color:"var(--color-text-tertiary)",border:"0.5px solid var(--color-border-tertiary)"},
+    moicUp:   {color:"#10B981",fontWeight:500},
+    moicFlat: {color:"#F59E0B",fontWeight:500},
+    moicDown: {color:"#EF4444",fontWeight:500},
     pageTitle:{fontSize:20,fontWeight:600,color:"var(--color-text-primary)",marginBottom:4},
     pageSub:  {fontSize:12,color:"var(--color-text-secondary)",marginBottom:20},
-    input:   {width:"100%",padding:"8px 10px",border:"0.5px solid var(--color-border-secondary)",borderRadius:8,fontSize:13,boxSizing:"border-box",outline:"none"},
+    input:    {width:"100%",padding:"8px 10px",border:"0.5px solid var(--color-border-secondary)",borderRadius:8,fontSize:13,boxSizing:"border-box",outline:"none"},
+    yearTab:  (a)=>({padding:"6px 14px",borderRadius:6,fontSize:12,cursor:"pointer",fontWeight:a?600:400,background:a?"#2A1D16":"var(--color-background-secondary)",color:a?"#E8C9A8":"var(--color-text-secondary)",border:"0.5px solid "+(a?"#2A1D16":"var(--color-border-tertiary)"),transition:"all .12s"}),
   };
 
   const moicStyle = m => m>=2?S.moicUp:m>=1?S.moicFlat:S.moicDown;
@@ -162,7 +185,7 @@ export default function FundDashboard() {
     {id:"lpportal",  label:"LP Portal",    icon:UserCircle},
   ];
 
-  // ── Overview ─────────────────────────────────────────────────
+  // ── Overview ──────────────────────────────────────────────────
   const Overview = () => {
     const sectorMap={};
     portfolio.forEach(p=>{sectorMap[p.sector]=(sectorMap[p.sector]||0)+(p.currentMark||p.realized||0);});
@@ -230,18 +253,16 @@ export default function FundDashboard() {
               ))}
             </tbody>
           </table>
-          <button onClick={()=>setView("portfolio")} style={{marginTop:12,fontSize:12,padding:"6px 14px",border:"0.5px solid var(--color-border-secondary)",borderRadius:6,background:"transparent",color:"var(--color-text-secondary)",cursor:"pointer"}}>
-            View all {portfolio.length} companies →
-          </button>
+          <button onClick={()=>setView("portfolio")} style={{marginTop:12,fontSize:12,padding:"6px 14px",border:"0.5px solid var(--color-border-secondary)",borderRadius:6,background:"transparent",color:"var(--color-text-secondary)",cursor:"pointer"}}>View all {portfolio.length} companies →</button>
         </div>
       </div>
     );
   };
 
-  // ── Portfolio ─────────────────────────────────────────────────
+  // ── Portfolio ──────────────────────────────────────────────────
   const Portfolio = () => {
-    const co = selectedCompany;
-    if (co) return (
+    const co=selectedCompany;
+    if(co) return (
       <div>
         <button onClick={()=>setSelectedCompany(null)} style={{fontSize:12,padding:"6px 12px",border:"0.5px solid var(--color-border-secondary)",borderRadius:6,background:"transparent",color:"var(--color-text-secondary)",cursor:"pointer",marginBottom:16}}>← Back to portfolio</button>
         <div style={S.card}>
@@ -251,14 +272,11 @@ export default function FundDashboard() {
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
             {[
-              {h:"Invested",       v:fmt(co.invested)},
-              {h:"Current Mark",   v:co.status==="exited"?fmt(co.realized):fmt(co.currentMark)},
-              {h:"MOIC",           v:fmtX(co.moic), color:moicColor(co.moic)},
-              {h:"Ownership",      v:pct(co.ownership/100)},
-              {h:"Investment Date",v:fmtDate(co.date)},
-              {h:"Stage",          v:co.stage},
-              {h:"Unrealized G/L", v:fmt((co.currentMark||0)-co.invested), color:(co.currentMark||0)>=co.invested?"#10B981":"#EF4444"},
-              {h:"Status",         v:co.status[0].toUpperCase()+co.status.slice(1)},
+              {h:"Invested",v:fmt(co.invested)},{h:"Current Mark",v:co.status==="exited"?fmt(co.realized):fmt(co.currentMark)},
+              {h:"MOIC",v:fmtX(co.moic),color:moicColor(co.moic)},{h:"Ownership",v:pct(co.ownership/100)},
+              {h:"Investment Date",v:fmtDate(co.date)},{h:"Stage",v:co.stage},
+              {h:"Unrealized G/L",v:fmt((co.currentMark||0)-co.invested),color:(co.currentMark||0)>=co.invested?"#10B981":"#EF4444"},
+              {h:"Status",v:co.status[0].toUpperCase()+co.status.slice(1)},
             ].map((m,i)=>(<div key={i} style={{padding:"12px",background:"var(--color-background-secondary)",borderRadius:8}}><div style={{fontSize:10,color:"var(--color-text-tertiary)",marginBottom:4,fontWeight:500}}>{m.h}</div><div style={{fontSize:15,fontWeight:500,color:m.color||"var(--color-text-primary)"}}>{m.v}</div></div>))}
           </div>
         </div>
@@ -294,7 +312,7 @@ export default function FundDashboard() {
     );
   };
 
-  // ── LP Management ─────────────────────────────────────────────
+  // ── LP Management ──────────────────────────────────────────────
   const LPView = () => (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -345,12 +363,13 @@ export default function FundDashboard() {
   // ── Fund Metrics ──────────────────────────────────────────────
   const Metrics = () => {
     const cashflowBars=CASHFLOWS.map(c=>({label:c.label.split(" ")[0]+" "+c.label.split(" ")[1],amount:c.amount,color:c.type==="call"?"#EF4444":"#10B981"}));
+    const chartData=HISTORICAL_METRICS.filter(y=>y.tvpi!==null);
     return (
       <div>
         <div style={S.pageTitle}>Fund Performance Metrics</div>
         <div style={S.pageSub}>Gross and net performance · {FUND.vintage} vintage · as of {new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})}</div>
         <div style={{...S.card,marginBottom:14}}>
-          <div style={S.secH}>Performance summary</div>
+          <div style={S.secH}>Current performance summary</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:1,background:"var(--color-border-tertiary)",borderRadius:8,overflow:"hidden"}}>
             {[
               {label:"TVPI (Gross)",gross:fmtX(metrics.tvpi),   net:fmtX(metrics.netTvpi),               desc:"Total value / paid-in capital"},
@@ -372,32 +391,67 @@ export default function FundDashboard() {
             ))}
           </div>
         </div>
+
+        {/* Year-over-year table */}
+        <div style={S.card}>
+          <div style={S.secH}>Year-over-year performance</div>
+          <div style={{overflowX:"auto"}}>
+            <table style={S.tbl}>
+              <thead style={{background:"var(--color-background-secondary)"}}>
+                <tr>{["Year","TVPI","DPI","RVPI","IRR","NAV","Paid-In","Distributions","Carry"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {HISTORICAL_METRICS.filter(y=>TAX_YEARS.includes(y.year)).map((y,i)=>(
+                  <tr key={y.year} style={{background:y.year===taxYear?"rgba(200,145,90,0.08)":i%2===0?"#fff":"#FAF7F3"}}>
+                    <td style={{...S.td,fontWeight:600}}>
+                      {y.year}
+                      {y.year===CURRENT_YEAR&&<span style={{fontSize:10,marginLeft:6,color:"#C8915A"}}>(current)</span>}
+                      {y.tvpi===null&&<span style={{fontSize:10,marginLeft:6,color:"#A89A8C"}}>(pending)</span>}
+                    </td>
+                    <td style={{...S.td,...(y.tvpi!=null?(y.tvpi>=2?S.moicUp:y.tvpi>=1?S.moicFlat:S.moicDown):{}),fontVariantNumeric:"tabular-nums"}}>{dash(y.tvpi!=null?fmtX(y.tvpi):null)}</td>
+                    <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{dash(y.dpi!=null?fmtX(y.dpi):null)}</td>
+                    <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{dash(y.rvpi!=null?fmtX(y.rvpi):null)}</td>
+                    <td style={{...S.td,color:y.irr!=null?(y.irr>=0?"#10B981":"#EF4444"):"#A89A8C",fontVariantNumeric:"tabular-nums"}}>{y.irr!=null?`${y.irr>=0?"+":""}${y.irr.toFixed(1)}%`:"—"}</td>
+                    <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{dash(y.nav!=null?fmt(y.nav):null)}</td>
+                    <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{fmt(y.paidIn)}</td>
+                    <td style={{...S.td,fontVariantNumeric:"tabular-nums",color:y.distributions>0?"#10B981":"inherit"}}>{dash(y.distributions!=null?(y.distributions>0?fmt(y.distributions):"—"):null)}</td>
+                    <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{dash(y.carry!=null?(y.carry>0?fmt(y.carry):"—"):null)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div style={S.grid2}>
           <div style={S.card}>
-            <div style={S.secH}>TVPI progression</div>
+            <div style={S.secH}>TVPI & DPI by year</div>
             <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={QUARTERLY} margin={{top:4,right:8,left:0,bottom:0}}>
+              <BarChart data={chartData} margin={{top:4,right:8,left:0,bottom:0}}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-tertiary)" vertical={false}/>
-                <XAxis dataKey="q" tick={{fontSize:9}} interval={2}/>
-                <YAxis domain={[0.8,2.0]} tick={{fontSize:9}} tickFormatter={v=>v+"x"}/>
-                <Tooltip formatter={v=>[v+"x","TVPI"]} contentStyle={{fontSize:11,borderRadius:6}}/>
-                <Line type="monotone" dataKey="tvpi" stroke="#C8915A" strokeWidth={2} dot={{r:3,fill:"#C8915A"}}/>
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div style={S.card}>
-            <div style={S.secH}>Cash flow waterfall</div>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={cashflowBars} margin={{top:4,right:8,left:0,bottom:20}}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-tertiary)" vertical={false}/>
-                <XAxis dataKey="label" tick={{fontSize:9}} angle={-20} textAnchor="end"/>
-                <YAxis tickFormatter={v=>"$"+(Math.abs(v)/1e6).toFixed(0)+"M"} tick={{fontSize:9}}/>
-                <Tooltip formatter={v=>[fmt(Math.abs(v)),v<0?"Capital Call":"Distribution"]} contentStyle={{fontSize:11,borderRadius:6}}/>
-                <Bar dataKey="amount" radius={[4,4,0,0]}>{cashflowBars.map((e,i)=><Cell key={i} fill={e.color}/>)}</Bar>
+                <XAxis dataKey="year" tick={{fontSize:10}}/>
+                <YAxis tickFormatter={v=>v+"x"} tick={{fontSize:9}}/>
+                <Tooltip formatter={(v,n)=>[fmtX(v),n.toUpperCase()]} contentStyle={{fontSize:11,borderRadius:6}}/>
+                <Legend wrapperStyle={{fontSize:11}}/>
+                <Bar dataKey="tvpi" name="TVPI" fill="#C8915A" radius={[3,3,0,0]}/>
+                <Bar dataKey="dpi"  name="DPI"  fill="#10B981" radius={[3,3,0,0]}/>
               </BarChart>
             </ResponsiveContainer>
           </div>
+          <div style={S.card}>
+            <div style={S.secH}>NAV over years</div>
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={chartData} margin={{top:4,right:8,left:0,bottom:0}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-tertiary)" vertical={false}/>
+                <XAxis dataKey="year" tick={{fontSize:10}}/>
+                <YAxis tickFormatter={v=>"$"+(v/1e6).toFixed(0)+"M"} tick={{fontSize:9}}/>
+                <Tooltip formatter={v=>[fmt(v),"NAV"]} contentStyle={{fontSize:11,borderRadius:6}}/>
+                <Line type="monotone" dataKey="nav" stroke="#C8915A" strokeWidth={2} dot={{r:4,fill:"#C8915A"}}/>
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
+
         <div style={S.card}>
           <div style={S.secH}>Fee & carry summary</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
@@ -413,19 +467,35 @@ export default function FundDashboard() {
     );
   };
 
-  // ── Documents ─────────────────────────────────────────────────
+  // ── Documents ──────────────────────────────────────────────────
   const Documents = () => (
     <div>
       <div style={S.pageTitle}>Documents & Reporting</div>
       <div style={S.pageSub}>K-1s, financial reports, and LP communications</div>
+      <div style={{...S.card,marginBottom:14}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <Calendar size={14} color="var(--color-text-secondary)"/>
+            <span style={{fontSize:13,fontWeight:500,color:"var(--color-text-primary)"}}>Tax year:</span>
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {TAX_YEARS.map(y=>(
+              <button key={y} onClick={()=>setTaxYear(y)} style={S.yearTab(taxYear===y)}>{y}</button>
+            ))}
+          </div>
+          <div style={{marginLeft:"auto",fontSize:11,color:"var(--color-text-tertiary)"}}>
+            Filing deadline: <strong style={{color:"var(--color-text-primary)"}}>March 15, {taxYear+1}</strong>
+          </div>
+        </div>
+      </div>
       <div style={S.grid2}>
         {[
-          {title:"K-1 Tax Documents",      desc:"Annual Schedule K-1 for each LP showing allocated income, losses, deductions, and credits.", year:"2024 (current)",       status:"pending",color:"#F59E0B"},
-          {title:"Financial Reports",       desc:"Audited and unaudited financial statements including balance sheet, P&L, and capital account statements.", year:"Q1 2024",status:"ready",  color:"#10B981"},
-          {title:"Capital Call Notices",    desc:"Formal notices to LPs for capital contributions with wiring instructions and deadlines.", year:"Most recent: Call 5",  status:"sent",   color:"#10B981"},
-          {title:"Distribution Notices",    desc:"Notices to LPs accompanying distributions with tax withholding details.", year:"Jan 2024 distribution",               status:"sent",   color:"#10B981"},
-          {title:"Quarterly LP Reports",    desc:"Portfolio update, NAV summary, notable events, and outlook for limited partners.", year:"Q1 2024",                     status:"draft",  color:"#C8915A"},
-          {title:"Annual Meeting Materials",desc:"Annual meeting deck, fund overview, portfolio deep-dives, and outlook presentation.", year:"2024",                      status:"pending",color:"#F59E0B"},
+          {title:"K-1 Tax Documents",      desc:`Annual Schedule K-1 for each LP showing allocated income, losses, deductions, and credits.`, year:`${taxYear} tax year`,        status:"pending",color:"#F59E0B"},
+          {title:"Financial Reports",       desc:"Audited and unaudited financial statements including balance sheet, P&L, and capital account statements.", year:`FY ${taxYear}`, status:"ready",  color:"#10B981"},
+          {title:"Capital Call Notices",    desc:"Formal notices to LPs for capital contributions with wiring instructions and deadlines.", year:"Most recent: Call 5",          status:"sent",   color:"#10B981"},
+          {title:"Distribution Notices",    desc:"Notices to LPs accompanying distributions with tax withholding details.", year:`${taxYear} distributions`,                    status:"sent",   color:"#10B981"},
+          {title:"Quarterly LP Reports",    desc:"Portfolio update, NAV summary, notable events, and outlook for limited partners.", year:`Q4 ${taxYear}`,                      status:"draft",  color:"#C8915A"},
+          {title:"Annual Meeting Materials",desc:"Annual meeting deck, fund overview, portfolio deep-dives, and outlook presentation.", year:`${taxYear} annual meeting`,         status:"pending",color:"#F59E0B"},
         ].map((d,i)=>(
           <div key={i} style={{...S.card,display:"flex",flexDirection:"column",gap:10}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
@@ -441,23 +511,37 @@ export default function FundDashboard() {
         ))}
       </div>
       <div style={{...S.card,background:"var(--color-background-secondary)",border:"0.5px dashed var(--color-border-secondary)"}}>
-        <div style={{fontSize:12,fontWeight:500,marginBottom:4,color:"var(--color-text-secondary)"}}>K-1 Generation</div>
-        <div style={{fontSize:11,color:"var(--color-text-tertiary)",lineHeight:1.6,marginBottom:12}}>Generate Schedule K-1 for all {lps.length} LPs for the 2024 tax year. Each K-1 will include allocated ordinary income, capital gains, deductions, and each LP's ending capital account balance.</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+          <div>
+            <div style={{fontSize:12,fontWeight:500,marginBottom:2,color:"var(--color-text-secondary)"}}>K-1 Generation — Tax Year {taxYear}</div>
+            <div style={{fontSize:11,color:"var(--color-text-tertiary)",lineHeight:1.6}}>Generate Schedule K-1 for all {lps.length} LPs. Fields are pre-filled and fully editable. Changes save automatically.</div>
+          </div>
+          <div style={{fontSize:11,color:"var(--color-text-tertiary)",textAlign:"right",flexShrink:0,marginLeft:16}}>
+            {TAX_YEARS.slice(-4).map(y=>{
+              const filed=Object.keys(k1Data?.[y]||{}).length;
+              return <div key={y} style={{marginBottom:2}}>{y}: <span style={{color:filed>0?"#10B981":"var(--color-text-tertiary)",fontWeight:filed>0?500:400}}>{filed>0?`${filed} LP${filed>1?"s":""} saved`:"not started"}</span></div>;
+            })}
+          </div>
+        </div>
         <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-          {lps.map(lp=>(
-            <button key={lp.id} onClick={()=>setShowK1(lp)} style={{fontSize:12,padding:"8px 16px",background:"#2A1D16",color:"#E8C9A8",border:"none",borderRadius:8,cursor:"pointer",fontWeight:500}}>
-              {lp.name.split(" ")[0]} K-1 →
-            </button>
-          ))}
+          {lps.map(lp=>{
+            const saved=!!(k1Data?.[taxYear]?.[lp.id]);
+            return (
+              <button key={lp.id} onClick={()=>setShowK1(lp)}
+                style={{fontSize:12,padding:"8px 16px",background:saved?"#10B981":"#2A1D16",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:500}}>
+                {saved?"✓ ":""}{lp.name.split(" ")[0]} {taxYear} K-1 →
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 
-  // ── LP Portal ─────────────────────────────────────────────────
+  // ── LP Portal ──────────────────────────────────────────────────
   const LPPortal = () => {
     const [selectedLP, setSelectedLP] = useState(null);
-    if (!selectedLP) return (
+    if(!selectedLP) return (
       <div>
         <div style={S.pageTitle}>LP Portal</div>
         <div style={S.pageSub}>Select a limited partner to view their personalized statement</div>
@@ -548,9 +632,9 @@ export default function FundDashboard() {
     );
   };
 
-  // ── K1 Modal ──────────────────────────────────────────────────
+  // ── K-1 Modal ──────────────────────────────────────────────────
   const K1Modal = ({ lp, onClose }) => {
-    if (!lp) return null;
+    if(!lp) return null;
     const ownershipPct=lp.contributed/lpMetrics.totalContributed;
     const ordinaryIncome=Math.max(0,(metrics.totalValue-metrics.paidIn)*ownershipPct*0.4);
     const capitalGains=Math.max(0,(metrics.totalValue-metrics.paidIn)*ownershipPct*0.6);
@@ -559,92 +643,199 @@ export default function FundDashboard() {
     const currentEarnings=ordinaryIncome+capitalGains;
     const withdrawals=lp.distributions;
     const endingCapital=lp.nav;
-    const box=(num,label,value)=>(
-      <div style={{border:"1px solid #000",padding:"4px 6px",minHeight:44}}>
-        <div style={{fontSize:8,fontWeight:700}}>{num}</div>
-        <div style={{fontSize:8,color:"#333",marginBottom:2}}>{label}</div>
-        <div style={{fontSize:12,fontWeight:600,fontVariantNumeric:"tabular-nums"}}>
-          {typeof value==="number"?(value===0?"—":"$"+value.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})):value}
-        </div>
-      </div>
+    const liabNonrecourse=lp.nav*0.12;
+    const liabQualified=lp.nav*0.05;
+
+    const Field = ({id,defaultVal,style={}}) => {
+      const saved=getK1Field(lp.id,id,defaultVal);
+      return (
+        <input defaultValue={saved} onBlur={e=>saveK1Field(lp.id,id,e.target.value)}
+          style={{border:"none",borderBottom:"1px solid #000",outline:"none",background:"transparent",fontFamily:"Arial,Helvetica,sans-serif",width:"100%",padding:"1px 2px",boxSizing:"border-box",...style}}/>
+      );
+    };
+    const CB = ({filled=false})=>(
+      <span style={{display:"inline-block",width:9,height:9,border:"1px solid #000",marginRight:3,verticalAlign:"middle",fontSize:8,textAlign:"center",lineHeight:"9px",background:filled?"#333":"transparent",color:filled?"#fff":"transparent"}}>{filled?"✓":""}</span>
     );
+    const PH = {background:"#000",color:"#fff",padding:"2px 4px",fontSize:8.5,fontWeight:700,display:"flex",alignItems:"center",gap:6};
+    const PHG = {background:"#e0e0e0",padding:"2px 4px",fontSize:8.5,fontWeight:700,display:"flex",alignItems:"center",gap:6};
+
     return (
-      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",overflow:"auto",padding:24}} onClick={onClose}>
-        <div style={{background:"#fff",maxWidth:760,width:"100%",fontFamily:"Arial,sans-serif"}} onClick={e=>e.stopPropagation()}>
-          <div style={{background:"#2A1D16",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{color:"#E8C9A8",fontSize:13,fontWeight:500}}>Schedule K-1 Preview — {lp.name}</span>
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:2000,display:"flex",alignItems:"flex-start",justifyContent:"center",overflow:"auto",padding:"20px 16px"}} onClick={onClose}>
+        <div style={{background:"#fff",maxWidth:820,width:"100%",fontFamily:"Arial,Helvetica,sans-serif"}} onClick={e=>e.stopPropagation()}>
+          <div style={{background:"#2A1D16",padding:"10px 18px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <span style={{color:"#E8C9A8",fontSize:13,fontWeight:500}}>Schedule K-1 (Form 1065) {taxYear} — {lp.name}</span>
+              <span style={{marginLeft:12,fontSize:11,color:"rgba(255,255,255,0.4)"}}>Filing deadline March 15, {taxYear+1}</span>
+            </div>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>window.print()} style={{padding:"6px 14px",background:"#C8915A",color:"#fff",border:"none",borderRadius:6,fontSize:12,cursor:"pointer",fontWeight:500}}>Print / Save PDF</button>
-              <button onClick={onClose} style={{padding:"6px 14px",background:"transparent",color:"rgba(255,255,255,0.6)",border:"0.5px solid rgba(255,255,255,0.2)",borderRadius:6,fontSize:12,cursor:"pointer"}}>Close</button>
+              <button onClick={()=>window.print()} style={{padding:"5px 14px",background:"#C8915A",color:"#fff",border:"none",borderRadius:5,fontSize:12,cursor:"pointer",fontWeight:500}}>Print / Save PDF</button>
+              <button onClick={onClose} style={{padding:"5px 12px",background:"transparent",color:"rgba(255,255,255,0.55)",border:"0.5px solid rgba(255,255,255,0.2)",borderRadius:5,fontSize:12,cursor:"pointer"}}>Close</button>
             </div>
           </div>
-          <div style={{padding:24}}>
-            <div style={{border:"2px solid #000"}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",borderBottom:"1px solid #000"}}>
-                <div style={{padding:"6px 8px",borderRight:"1px solid #000"}}><div style={{fontSize:8}}>651123</div><div style={{fontSize:9,fontWeight:700}}>FINAL K-1</div><div style={{fontSize:8}}>☐ Amended K-1</div></div>
-                <div style={{padding:"6px 16px",textAlign:"center",borderRight:"1px solid #000"}}><div style={{fontSize:10,fontWeight:700}}>Schedule K-1</div><div style={{fontSize:8}}>(Form 1065)</div><div style={{fontSize:8}}>Department of the Treasury</div><div style={{fontSize:8}}>Internal Revenue Service</div></div>
-                <div style={{padding:"6px 8px"}}><div style={{fontSize:9,fontWeight:700}}>2024</div><div style={{fontSize:8}}>For calendar year 2024</div></div>
-              </div>
-              <div style={{padding:"4px 8px",background:"#000",textAlign:"center"}}><span style={{color:"#fff",fontSize:10,fontWeight:700}}>Partner's Share of Income, Deductions, Credits, etc.</span></div>
-              <div style={{padding:"4px 8px",background:"#ddd",borderBottom:"1px solid #000",borderTop:"1px solid #000"}}><span style={{fontSize:9,fontWeight:700}}>Part I  Information About the Partnership</span></div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",borderBottom:"1px solid #000"}}>
-                <div style={{padding:"4px 8px",borderRight:"1px solid #000"}}><div style={{fontSize:8,fontWeight:700}}>A  Partnership's employer identification number</div><div style={{fontSize:11,fontWeight:600}}>82-4721039</div></div>
-                <div style={{padding:"4px 8px"}}><div style={{fontSize:8,fontWeight:700}}>B  Partnership's name, address, city, state, and ZIP code</div><div style={{fontSize:10,fontWeight:600}}>{FUND.name}</div><div style={{fontSize:9}}>c/o {FUND.manager} · San Francisco, CA 94105</div></div>
-              </div>
-              <div style={{padding:"4px 8px",background:"#ddd",borderBottom:"1px solid #000"}}><span style={{fontSize:9,fontWeight:700}}>Part II  Information About the Partner</span></div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",borderBottom:"1px solid #000"}}>
-                <div style={{padding:"4px 8px",borderRight:"1px solid #000"}}><div style={{fontSize:8,fontWeight:700}}>E  Partner's TIN</div><div style={{fontSize:11,fontWeight:600}}>**-***{String(lp.id).slice(-4).padStart(4,"0")}</div></div>
-                <div style={{padding:"4px 8px"}}><div style={{fontSize:8,fontWeight:700}}>F  Partner's name and address</div><div style={{fontSize:10,fontWeight:600}}>{lp.name}</div><div style={{fontSize:9}}>{lp.type} · Limited Partner</div></div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",borderBottom:"1px solid #000"}}>
-                <div style={{padding:"4px 8px",borderRight:"1px solid #000"}}><div style={{fontSize:8,fontWeight:700}}>G  Partner type</div><div style={{fontSize:9}}>☑ Limited partner  ☐ General partner</div></div>
-                <div style={{padding:"4px 8px",borderRight:"1px solid #000"}}><div style={{fontSize:8,fontWeight:700}}>H  Domestic / Foreign</div><div style={{fontSize:9}}>☑ Domestic  ☐ Foreign</div></div>
-                <div style={{padding:"4px 8px"}}><div style={{fontSize:8,fontWeight:700}}>J  Partner's share of profit/loss/capital</div><div style={{fontSize:9}}>{pct(ownershipPct)} / {pct(ownershipPct)} / {pct(ownershipPct)}</div></div>
-              </div>
-              <div style={{padding:"4px 8px",background:"#ddd",borderBottom:"1px solid #000"}}><span style={{fontSize:9,fontWeight:700}}>Part III  Partner's Share of Current Year Income, Deductions, Credits, and Other Items</span></div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)"}}>
-                {box("1","Ordinary business income (loss)",ordinaryIncome)}
-                {box("2","Net rental real estate income (loss)",0)}
-                {box("3","Other net rental income (loss)",0)}
-                {box("4","Guaranteed payments for services",0)}
-                {box("5","Guaranteed payments for capital",0)}
-                {box("6a","Ordinary dividends",0)}
-                {box("7","Royalties",0)}
-                {box("8","Net short-term capital gain (loss)",0)}
-                {box("9a","Net long-term capital gain (loss)",capitalGains)}
-                {box("10","Net section 1231 gain (loss)",0)}
-                {box("11","Other income (loss)",0)}
-                {box("12","Section 179 deduction",0)}
-                {box("13","Other deductions",0)}
-                {box("14","Self-employment earnings (loss)",0)}
-                {box("15","Credits",0)}
-                {box("16","Schedule K-3 attached","☐")}
-                {box("17","AMT items",0)}
-                {box("18","Tax-exempt income",0)}
-                {box("19","Distributions",withdrawals)}
-                {box("20","Other information","See stmt")}
-              </div>
-              <div style={{padding:"4px 8px",background:"#ddd",borderBottom:"1px solid #000",borderTop:"1px solid #000"}}><span style={{fontSize:9,fontWeight:700}}>Capital Account Analysis</span></div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)"}}>
-                {[
-                  {l:"Beginning capital account",     v:beginningCapital},
-                  {l:"Capital contributed during year",v:contributions},
-                  {l:"Current year net income (loss)", v:currentEarnings},
-                  {l:"Other increase (decrease)",      v:0},
-                  {l:"Withdrawals & distributions",    v:-withdrawals},
-                ].map((m,i)=>(
-                  <div key={i} style={{padding:"4px 8px",borderRight:i<4?"1px solid #000":"none",borderTop:"1px solid #000"}}>
-                    <div style={{fontSize:7,fontWeight:700,marginBottom:4}}>{m.l}</div>
-                    <div style={{fontSize:11,fontWeight:600,fontVariantNumeric:"tabular-nums",color:m.v<0?"#EF4444":"#000"}}>{m.v<0?"("+fmt(Math.abs(m.v))+")":fmt(Math.abs(m.v))}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{padding:"6px 8px",borderTop:"1px solid #000",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div style={{fontSize:9,fontWeight:700}}>Ending capital account</div>
-                <div style={{fontSize:14,fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{fmt(endingCapital)}</div>
+          <div style={{padding:20,fontSize:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{fontSize:7,color:"#555"}}>651121</span>
+              <div style={{display:"flex",gap:12,fontSize:7.5}}>
+                <label><CB/> Final K-1</label>
+                <label><CB/> Amended K-1</label>
+                <span style={{fontSize:7}}>OMB No. 1545-0123</span>
               </div>
             </div>
-            <div style={{marginTop:8,fontSize:8,color:"#667",textAlign:"center"}}>For Paperwork Reduction Act Notice, see the Instructions for Form 1065. · Cat. No. 11394R · Schedule K-1 (Form 1065) 2024</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",border:"1px solid #000"}}>
+              {/* LEFT */}
+              <div style={{borderRight:"1px solid #000"}}>
+                <div style={{padding:"4px 6px",borderBottom:"0.5px solid #000"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                    <div><div style={{fontSize:10,fontWeight:700}}>Schedule K-1</div><div style={{fontSize:9,fontWeight:700}}>(Form 1065)</div><div style={{fontSize:7}}>Department of the Treasury · Internal Revenue Service</div></div>
+                    <div style={{fontSize:22,fontWeight:900,userSelect:"none"}}>{taxYear}</div>
+                  </div>
+                  <div style={{fontSize:7,marginTop:2}}>For calendar year {taxYear}</div>
+                </div>
+                <div style={{padding:"4px 6px",borderBottom:"0.5px solid #000"}}>
+                  <div style={{fontSize:11,fontWeight:900}}>Partner's Share of Income, Deductions, Credits, etc.</div>
+                  <div style={{fontSize:7}}>▶ See back of form and separate instructions.</div>
+                </div>
+                <div style={PHG}><span style={{fontWeight:900,background:"#000",color:"#fff",padding:"0 4px",marginRight:2}}>Part I</span> Information About the Partnership</div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000"}}>
+                  <div style={{fontSize:7,marginBottom:2}}><strong>A</strong> Partnership's employer identification number</div>
+                  <Field id="ein" defaultVal={FUND.ein} style={{fontSize:11,fontWeight:700,letterSpacing:1}}/>
+                </div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000",minHeight:44}}>
+                  <div style={{fontSize:7,marginBottom:2}}><strong>B</strong> Partnership's name, address, city, state, and ZIP code</div>
+                  <Field id="pName"    defaultVal={FUND.name}    style={{fontSize:10,fontWeight:600}}/>
+                  <Field id="pAddress" defaultVal={FUND.address} style={{fontSize:8}}/>
+                  <Field id="pCity"    defaultVal={FUND.city}    style={{fontSize:8}}/>
+                </div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000"}}>
+                  <div style={{fontSize:7,marginBottom:1}}><strong>C</strong> IRS center where partnership filed return ▶</div>
+                  <Field id="irsCenter" defaultVal="e-file" style={{fontSize:8}}/>
+                </div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000"}}><div style={{fontSize:7}}><strong>D</strong> <CB/> Check if this is a publicly traded partnership (PTP)</div></div>
+                <div style={PHG}><span style={{fontWeight:900,background:"#000",color:"#fff",padding:"0 4px",marginRight:2}}>Part II</span> Information About the Partner</div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000"}}>
+                  <div style={{fontSize:7,marginBottom:2}}><strong>E</strong> Partner's SSN or TIN</div>
+                  <Field id="partnerTIN" defaultVal={`**-***${String(lp.id).slice(-4).padStart(4,"0")}`} style={{fontSize:11,fontWeight:700}}/>
+                </div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000",minHeight:40}}>
+                  <div style={{fontSize:7,marginBottom:2}}><strong>F</strong> Partner's name and address</div>
+                  <Field id="partnerName"    defaultVal={lp.name}                     style={{fontSize:10,fontWeight:600}}/>
+                  <Field id="partnerAddress" defaultVal={lp.type+" · Limited Partner"} style={{fontSize:8}}/>
+                </div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000"}}><div style={{fontSize:7}}><strong>G</strong> <CB/> General partner &nbsp;&nbsp; <CB filled/> Limited partner</div></div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000"}}><div style={{fontSize:7}}><strong>H1</strong> <CB filled/> Domestic partner &nbsp;&nbsp; <CB/> Foreign partner</div></div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000"}}>
+                  <div style={{fontSize:7,marginBottom:1}}><strong>I1</strong> What type of entity is this partner?</div>
+                  <Field id="entityType" defaultVal={lp.type} style={{fontSize:8}}/>
+                </div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000"}}><div style={{fontSize:7}}><strong>I2</strong> If this partner is a retirement plan, check here ▶ <CB/></div></div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000"}}>
+                  <div style={{fontSize:7,fontWeight:700,marginBottom:2}}><strong>J</strong> Partner's share of profit, loss, and capital:</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 55px 55px",gap:2,fontSize:7,alignItems:"center"}}>
+                    <div/><div style={{textAlign:"center",fontWeight:700}}>Beginning</div><div style={{textAlign:"center",fontWeight:700}}>Ending</div>
+                    {["Profit","Loss","Capital"].map(r=>[
+                      <div key={r+"l"}>{r}</div>,
+                      <Field key={r+"b"} id={`j${r}B`} defaultVal={pct(ownershipPct)} style={{fontSize:8,textAlign:"center"}}/>,
+                      <Field key={r+"e"} id={`j${r}E`} defaultVal={pct(ownershipPct)} style={{fontSize:8,textAlign:"center"}}/>,
+                    ])}
+                  </div>
+                </div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000"}}>
+                  <div style={{fontSize:7,fontWeight:700,marginBottom:2}}><strong>K</strong> Partner's share of liabilities:</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 55px 55px",gap:2,fontSize:7,alignItems:"center"}}>
+                    <div/><div style={{textAlign:"center",fontWeight:700}}>Beginning</div><div style={{textAlign:"center",fontWeight:700}}>Ending</div>
+                    <div>Nonrecourse</div>
+                    <Field id="kNRB" defaultVal={"$"+Math.round(liabNonrecourse*0.9).toLocaleString()} style={{fontSize:8,textAlign:"right"}}/>
+                    <Field id="kNRE" defaultVal={"$"+Math.round(liabNonrecourse).toLocaleString()}     style={{fontSize:8,textAlign:"right"}}/>
+                    <div>Qualified nonrecourse</div>
+                    <Field id="kQNRB" defaultVal={"$"+Math.round(liabQualified*0.9).toLocaleString()} style={{fontSize:8,textAlign:"right"}}/>
+                    <Field id="kQNRE" defaultVal={"$"+Math.round(liabQualified).toLocaleString()}     style={{fontSize:8,textAlign:"right"}}/>
+                    <div>Recourse</div>
+                    <Field id="kRB" defaultVal="" style={{fontSize:8,textAlign:"right"}}/>
+                    <Field id="kRE" defaultVal="" style={{fontSize:8,textAlign:"right"}}/>
+                  </div>
+                </div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000"}}>
+                  <div style={{fontSize:7,fontWeight:700,textAlign:"center",marginBottom:3}}><strong>L</strong> Partner's Capital Account Analysis</div>
+                  {[
+                    {id:"lBeg",  label:"Beginning capital account",            val:d$(beginningCapital)},
+                    {id:"lCon",  label:"Capital contributed during the year",  val:d$(contributions)},
+                    {id:"lInc",  label:"Current year net income (loss)",        val:d$(currentEarnings)},
+                    {id:"lOth",  label:"Other increase (decrease)",             val:""},
+                    {id:"lWith", label:"Withdrawals and distributions",         val:dParen(-withdrawals)},
+                  ].map(r=>(
+                    <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:2}}>
+                      <span style={{fontSize:7,flex:1}}>{r.label} . . .</span>
+                      <Field id={r.id} defaultVal={r.val} style={{width:80,flexShrink:0,fontSize:8,fontWeight:600,textAlign:"right",fontVariantNumeric:"tabular-nums"}}/>
+                    </div>
+                  ))}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",borderTop:"1px solid #000",paddingTop:2,marginTop:2}}>
+                    <span style={{fontSize:7,fontWeight:700,flex:1}}>Ending capital account . . .</span>
+                    <Field id="lEnd" defaultVal={d$(endingCapital)} style={{width:80,flexShrink:0,fontSize:10,fontWeight:700,textAlign:"right",fontVariantNumeric:"tabular-nums"}}/>
+                  </div>
+                </div>
+                <div style={{padding:"3px 5px",borderBottom:"0.5px solid #000"}}><div style={{fontSize:7}}><strong>M</strong> Partner contribute property with built-in gain? <CB/> Yes &nbsp; <CB filled/> No</div></div>
+                <div style={{padding:"3px 5px"}}>
+                  <div style={{fontSize:7,fontWeight:700,marginBottom:2}}><strong>N</strong> Net Unrecognized Section 704(c) Gain or (Loss)</div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{fontSize:7}}>Beginning . . .</span><Field id="n704B" defaultVal="" style={{width:70,fontSize:8,textAlign:"right"}}/></div>
+                  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:7}}>Ending . . . . .</span><Field id="n704E" defaultVal="" style={{width:70,fontSize:8,textAlign:"right"}}/></div>
+                </div>
+              </div>
+              {/* RIGHT — Part III */}
+              <div style={{display:"flex",flexDirection:"column"}}>
+                <div style={PH}><span style={{fontWeight:900,padding:"0 4px",border:"1px solid #fff",marginRight:2}}>Part III</span><span style={{fontSize:8}}>Partner's Share of Current Year Income,<br/>Deductions, Credits, and Other Items</span></div>
+                <div style={{flex:1,padding:"2px 4px"}}>
+                  {[
+                    {n:"1",  l:"Ordinary business income (loss)",             id:"b1",   v:d$(ordinaryIncome),  bold:true},
+                    {n:"2",  l:"Net rental real estate income (loss)",         id:"b2",   v:""},
+                    {n:"3",  l:"Other net rental income (loss)",               id:"b3",   v:""},
+                    {n:"4a", l:"Guaranteed payments for services",             id:"b4a",  v:""},
+                    {n:"4b", l:"Guaranteed payments for capital",              id:"b4b",  v:""},
+                    {n:"4c", l:"Total guaranteed payments",                    id:"b4c",  v:""},
+                    {n:"5",  l:"Interest income",                              id:"b5",   v:""},
+                    {n:"6a", l:"Ordinary dividends",                           id:"b6a",  v:""},
+                    {n:"6b", l:"Qualified dividends",                          id:"b6b",  v:""},
+                    {n:"6c", l:"Dividend equivalents",                         id:"b6c",  v:""},
+                    {n:"7",  l:"Royalties",                                    id:"b7",   v:""},
+                    {n:"8",  l:"Net short-term capital gain (loss)",           id:"b8",   v:""},
+                    {n:"9a", l:"Net long-term capital gain (loss)",            id:"b9a",  v:d$(capitalGains),    bold:true},
+                    {n:"9b", l:"Collectibles (28%) gain (loss)",               id:"b9b",  v:""},
+                    {n:"9c", l:"Unrecaptured section 1250 gain",               id:"b9c",  v:""},
+                    {n:"10", l:"Net section 1231 gain (loss)",                 id:"b10",  v:""},
+                    {n:"11", l:"Other income (loss)",                          id:"b11",  v:""},
+                    {n:"12", l:"Section 179 deduction",                        id:"b12",  v:""},
+                    {n:"13", l:"Other deductions",                             id:"b13",  v:""},
+                    {n:"14", l:"Self-employment earnings (loss)",              id:"b14",  v:""},
+                    {n:"15", l:"Credits",                                      id:"b15",  v:""},
+                    {n:"16", l:"Schedule K-3 attached if checked ▶",          id:null,   v:null, checkbox:true},
+                    {n:"17", l:"Alternative minimum tax (AMT) items",          id:"b17",  v:""},
+                    {n:"18", l:"Tax-exempt income / nondeductible expenses",   id:"b18",  v:""},
+                    {n:"19", l:"Distributions",                                id:"b19",  v:d$(withdrawals),     bold:true},
+                    {n:"20", l:"Other information",                            id:"b20",  v:"See stmt"},
+                    {n:"21", l:"Foreign taxes paid or accrued",                id:"b21",  v:""},
+                  ].map((item,i)=>(
+                    <div key={i} style={{display:"grid",gridTemplateColumns:"16px 1fr 85px",gap:2,padding:"2px 2px",borderBottom:"0.5px solid #ddd",alignItems:"start",minHeight:18}}>
+                      <div style={{fontSize:8,fontWeight:700,paddingTop:2}}>{item.n}</div>
+                      <div style={{fontSize:7,lineHeight:1.3,fontWeight:item.bold?700:400,paddingTop:2}}>{item.l}</div>
+                      {item.checkbox?<div style={{paddingTop:2}}><CB/></div>:<Field id={item.id} defaultVal={item.v||""} style={{fontSize:9,fontWeight:item.bold?700:600,textAlign:"right",fontVariantNumeric:"tabular-nums"}}/>}
+                    </div>
+                  ))}
+                  <div style={{padding:"3px 3px",borderBottom:"0.5px solid #ddd"}}>
+                    <div style={{fontSize:7,marginBottom:2}}><CB/> <strong>22</strong> More than one activity for at-risk purposes*</div>
+                    <div style={{fontSize:7}}><CB/> <strong>23</strong> More than one activity for passive activity purposes*</div>
+                  </div>
+                  <div style={{padding:"2px 3px",fontSize:6.5,fontStyle:"italic"}}>*See attached statement for additional information.</div>
+                  <div style={{display:"flex",justifyContent:"flex-end",marginTop:4,paddingRight:4}}>
+                    <div style={{border:"1px solid #000",padding:"3px 5px",fontSize:7,writingMode:"vertical-rl",textOrientation:"mixed",transform:"rotate(180deg)",height:60,display:"flex",alignItems:"center",justifyContent:"center"}}>For IRS Use Only</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:7,color:"#444"}}>
+              <span>For Paperwork Reduction Act Notice, see the Instructions for Form 1065.</span>
+              <span>www.irs.gov/Form1065</span>
+              <span>Cat. No. 11394R</span>
+              <span style={{fontWeight:700}}>Schedule K-1 (Form 1065) {taxYear}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -674,7 +865,7 @@ export default function FundDashboard() {
           ))}
           <div style={S.sbLabel}>Fund</div>
           <div style={{padding:"0 16px"}}>
-            {[{l:"Size",v:fmt(FUND.size)},{l:"Called",v:pct(metrics.paidIn/FUND.size)},{l:"LPs",v:lps.length},{l:"Companies",v:portfolio.length}].map(r=>(
+            {[{l:"Size",v:fmt(FUND.size)},{l:"Called",v:pct(metrics.paidIn/FUND.size)},{l:"LPs",v:lps.length},{l:"Companies",v:portfolio.length},{l:"Tax Year",v:taxYear}].map(r=>(
               <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"0.5px solid rgba(255,255,255,0.05)",fontSize:11}}>
                 <span style={{color:"rgba(255,255,255,0.35)"}}>{r.l}</span>
                 <span style={{color:"rgba(255,255,255,0.65)"}}>{r.v}</span>
@@ -685,7 +876,6 @@ export default function FundDashboard() {
         <div style={S.main}>{VIEWS[view]}</div>
       </div>
 
-      {/* Add Company Modal */}
       {showAddCompany && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAddCompany(false)}>
           <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxWidth:"90vw"}} onClick={e=>e.stopPropagation()}>
@@ -694,9 +884,7 @@ export default function FundDashboard() {
               {[{label:"Company name *",key:"name",type:"text",placeholder:"e.g. Acme Corp"},{label:"Sector",key:"sector",type:"text",placeholder:"e.g. Deep Tech"},{label:"Invested ($) *",key:"invested",type:"number",placeholder:"e.g. 2000000"},{label:"Current mark ($)",key:"currentMark",type:"number",placeholder:"Leave blank = cost"},{label:"Ownership (%)",key:"ownership",type:"number",placeholder:"e.g. 8.5"},{label:"Investment date",key:"date",type:"date",placeholder:""}].map(f=>(
                 <div key={f.key}><label style={{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",display:"block",marginBottom:4}}>{f.label}</label><input type={f.type} placeholder={f.placeholder} value={companyForm[f.key]} onChange={e=>setCompanyForm(p=>({...p,[f.key]:e.target.value}))} style={S.input}/></div>
               ))}
-              <div><label style={{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",display:"block",marginBottom:4}}>Stage</label><select value={companyForm.stage} onChange={e=>setCompanyForm(p=>({...p,stage:e.target.value}))} style={{...S.input,background:"#fff"}}>
-                {["Pre-Seed","Seed","Series A","Series B","Series C","Growth","Exited"].map(s=><option key={s}>{s}</option>)}
-              </select></div>
+              <div><label style={{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",display:"block",marginBottom:4}}>Stage</label><select value={companyForm.stage} onChange={e=>setCompanyForm(p=>({...p,stage:e.target.value}))} style={{...S.input,background:"#fff"}}>{["Pre-Seed","Seed","Series A","Series B","Series C","Growth","Exited"].map(s=><option key={s}>{s}</option>)}</select></div>
             </div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:20}}>
               <button onClick={()=>setShowAddCompany(false)} style={{padding:"8px 16px",border:"0.5px solid var(--color-border-secondary)",borderRadius:8,background:"transparent",fontSize:13,cursor:"pointer"}}>Cancel</button>
@@ -706,7 +894,6 @@ export default function FundDashboard() {
         </div>
       )}
 
-      {/* Add LP Modal */}
       {showAddLP && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAddLP(false)}>
           <div style={{background:"#fff",borderRadius:12,padding:28,width:480,maxWidth:"90vw"}} onClick={e=>e.stopPropagation()}>
@@ -715,9 +902,7 @@ export default function FundDashboard() {
               {[{label:"LP Name *",key:"name",type:"text",placeholder:"e.g. Greenwood Endowment"},{label:"Commitment ($) *",key:"commitment",type:"number",placeholder:"e.g. 10000000"},{label:"Contributed ($)",key:"contributed",type:"number",placeholder:"e.g. 8000000"},{label:"Distributions ($)",key:"distributions",type:"number",placeholder:"e.g. 1000000"},{label:"Current NAV ($)",key:"nav",type:"number",placeholder:"e.g. 12000000"}].map(f=>(
                 <div key={f.key}><label style={{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",display:"block",marginBottom:4}}>{f.label}</label><input type={f.type} placeholder={f.placeholder} value={lpForm[f.key]} onChange={e=>setLpForm(p=>({...p,[f.key]:e.target.value}))} style={S.input}/></div>
               ))}
-              <div><label style={{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",display:"block",marginBottom:4}}>LP Type</label><select value={lpForm.type} onChange={e=>setLpForm(p=>({...p,type:e.target.value}))} style={{...S.input,background:"#fff"}}>
-                {["Family Office","Endowment","Pension Fund","Individual","Corporate","Sovereign Wealth","Fund of Funds"].map(t=><option key={t}>{t}</option>)}
-              </select></div>
+              <div><label style={{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",display:"block",marginBottom:4}}>LP Type</label><select value={lpForm.type} onChange={e=>setLpForm(p=>({...p,type:e.target.value}))} style={{...S.input,background:"#fff"}}>{["Family Office","Endowment","Pension Fund","Individual","Corporate","Sovereign Wealth","Fund of Funds"].map(t=><option key={t}>{t}</option>)}</select></div>
             </div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:20}}>
               <button onClick={()=>setShowAddLP(false)} style={{padding:"8px 16px",border:"0.5px solid var(--color-border-secondary)",borderRadius:8,background:"transparent",fontSize:13,cursor:"pointer"}}>Cancel</button>
@@ -727,7 +912,6 @@ export default function FundDashboard() {
         </div>
       )}
 
-      {/* K-1 Modal */}
       <K1Modal lp={showK1} onClose={()=>setShowK1(null)}/>
     </div>
   );
