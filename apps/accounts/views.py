@@ -2,8 +2,9 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView as BaseTokenView
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
@@ -64,3 +65,17 @@ class MeView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        try:
+            user = User.objects.get(email=attrs.get("email"))
+            attrs["username"] = user.username
+        except User.DoesNotExist:
+            pass
+        return super().validate(attrs)
+
+
+class EmailTokenObtainPairView(BaseTokenView):
+    serializer_class = EmailTokenObtainPairSerializer
