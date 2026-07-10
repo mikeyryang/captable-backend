@@ -72,7 +72,7 @@ function vestedShares(s, asOf = TODAY) {
   return Math.min(s.vest.total, Math.floor(s.vest.total * (mos / s.vest.mos)));
 }
 
-const fmt   = n => n == null ? "—" : n >= 1e6 ? (n/1e6).toFixed(2)+"M" : n >= 1e3 ? (n/1e3).toFixed(0)+"K" : n.toLocaleString();
+const fmt   = n => n == null ? "-" : n >= 1e6 ? (n/1e6).toFixed(2)+"M" : n >= 1e3 ? (n/1e3).toFixed(0)+"K" : n.toLocaleString();
 const pct   = n => (n * 100).toFixed(2) + "%";
 const fmtD  = n => n >= 1e6 ? "$"+(n/1e6).toFixed(2)+"M" : n >= 1e3 ? "$"+(n/1e3).toFixed(0)+"K" : "$"+n.toFixed(2);
 
@@ -82,8 +82,8 @@ const fmtD  = n => n >= 1e6 ? "$"+(n/1e6).toFixed(2)+"M" : n >= 1e3 ? "$"+(n/1e3
 
 function check409a(co) {
   const months = mosDiff(co.valDate, TODAY);
-  if (months > 12) return { status:"critical", months, msg:`Valuation is ${months} months old — exceeds the 12-month safe harbor.`, action:"Order a new 409A immediately. Options granted on a stale valuation expose grantees to §409A tax penalties (20% excise + interest)." };
-  if (months > 9)  return { status:"warning",  months, msg:`Valuation is ${months} months old — renewal due within 90 days.`, action:"Schedule a 409A refresh before the 12-month mark." };
+  if (months > 12) return { status:"critical", months, msg:`Valuation is ${months} months old · exceeds the 12-month safe harbor.`, action:"Order a new 409A immediately. Options granted on a stale valuation expose grantees to §409A tax penalties (20% excise + interest)." };
+  if (months > 9)  return { status:"warning",  months, msg:`Valuation is ${months} months old · renewal due within 90 days.`, action:"Schedule a 409A refresh before the 12-month mark." };
   return { status:"ok", months, msg:`Valuation is current (${months} months old, within 12-month safe harbor).`, action:null };
 }
 
@@ -91,9 +91,9 @@ function checkRule701(secs) {
   const cutoff = new Date(TODAY); cutoff.setFullYear(cutoff.getFullYear() - 1);
   const eligible = secs.filter(s => ["employee","advisor"].includes(s.type) && new Date(s.date) >= cutoff);
   const val = eligible.reduce((acc, s) => acc + s.shares * (s.price || 0), 0);
-  if (val > 5e6)  return { status:"critical", val, eligible, msg:`${fmtD(val)} issued in trailing 12 months — enhanced disclosure required.`, action:"You must provide audited financial statements, risk factors, and other disclosures to offerees before any further sales." };
-  if (val > 1e6)  return { status:"warning",  val, eligible, msg:`${fmtD(val)} issued — approaching the $5M enhanced-disclosure threshold.`, action:"Track cumulative issuances carefully. Prepare disclosures in advance of the $5M threshold." };
-  return { status:"ok", val, eligible, msg:`${fmtD(val)} issued in trailing 12 months — well within the $1M safe harbor.`, action:null };
+  if (val > 5e6)  return { status:"critical", val, eligible, msg:`${fmtD(val)} issued in trailing 12 months · enhanced disclosure required.`, action:"You must provide audited financial statements, risk factors, and other disclosures to offerees before any further sales." };
+  if (val > 1e6)  return { status:"warning",  val, eligible, msg:`${fmtD(val)} issued · approaching the $5M enhanced-disclosure threshold.`, action:"Track cumulative issuances carefully. Prepare disclosures in advance of the $5M threshold." };
+  return { status:"ok", val, eligible, msg:`${fmtD(val)} issued in trailing 12 months · well within the $1M safe harbor.`, action:null };
 }
 
 function check83b(secs) {
@@ -109,8 +109,8 @@ function check83b(secs) {
     const deadline = new Date(s.date); deadline.setDate(deadline.getDate() + 30);
     return TODAY <= deadline;
   });
-  if (overdue.length > 0) return { status:"critical", overdue, pending, msg:`${overdue.length} restricted stock grant(s) with expired 83(b) deadlines.`, action:"The 30-day window has passed. Consult a tax attorney immediately — you may have significant ordinary income exposure on future vesting." };
-  if (pending.length > 0) return { status:"warning",  overdue, pending, msg:`${pending.length} grant(s) with 83(b) elections due within 30 days.`, action:"File 83(b) elections with the IRS immediately. Deadline is 30 days from grant — no extensions are permitted." };
+  if (overdue.length > 0) return { status:"critical", overdue, pending, msg:`${overdue.length} restricted stock grant(s) with expired 83(b) deadlines.`, action:"The 30-day window has passed. Consult a tax attorney immediately · you may have significant ordinary income exposure on future vesting." };
+  if (pending.length > 0) return { status:"warning",  overdue, pending, msg:`${pending.length} grant(s) with 83(b) elections due within 30 days.`, action:"File 83(b) elections with the IRS immediately. Deadline is 30 days from grant · no extensions are permitted." };
   return { status:"ok", overdue:[], pending:[], msg:"All restricted stock grants have filed 83(b) elections on time.", action:null };
 }
 
@@ -128,8 +128,8 @@ function checkForm3921(secs, filed = false) {
   if (filed) return { status:"ok", isoExer:[], msg:"Form 3921 filed for all ISO exercises.", action:null };
   // for example: Jordan exercised in 2025 → Form 3921 due Jan 31, 2026 → TODAY is June 9, 2026 → overdue
   const overdue = isoExer.filter(() => TODAY > new Date("2026-01-31"));
-  if (overdue.length > 0) return { status:"critical", isoExer, msg:`${overdue.length} ISO exercise(s) with overdue Form 3921 filings (deadline was Jan 31, 2026).`, action:"File Form 3921 immediately. IRS penalty is $270–$550 per form for late filing after 30 days, with no ceiling for intentional disregard." };
-  if (isoExer.length > 0) return { status:"warning",  isoExer, msg:`${isoExer.length} ISO exercise(s) recorded — Form 3921 filing required by Jan 31 of following year.`, action:"Prepare and file Form 3921 with the IRS and furnish a copy to the employee by Jan 31." };
+  if (overdue.length > 0) return { status:"critical", isoExer, msg:`${overdue.length} ISO exercise(s) with overdue Form 3921 filings (deadline was Jan 31, 2026).`, action:"File Form 3921 immediately. IRS penalty is $270-$550 per form for late filing after 30 days, with no ceiling for intentional disregard." };
+  if (isoExer.length > 0) return { status:"warning",  isoExer, msg:`${isoExer.length} ISO exercise(s) recorded · Form 3921 filing required by Jan 31 of following year.`, action:"Prepare and file Form 3921 with the IRS and furnish a copy to the employee by Jan 31." };
   return { status:"ok", isoExer:[], msg:"No ISO exercises requiring Form 3921.", action:null };
 }
 
@@ -455,9 +455,9 @@ export default function CapTableApp() {
                           </div>
                           <div style={{ fontSize:10, color:"var(--color-text-tertiary)", marginTop:2 }}>{fmt(v)} / {fmt(s.vest.total)}</div>
                         </div>
-                      ) : <span style={{ fontSize:11, color:"var(--color-text-tertiary)" }}>—</span>}
+                      ) : <span style={{ fontSize:11, color:"var(--color-text-tertiary)" }}>-</span>}
                     </td>
-                    <td style={{ ...S.td, fontVariantNumeric:"tabular-nums" }}>{basicPct != null ? pct(basicPct) : "—"}</td>
+                    <td style={{ ...S.td, fontVariantNumeric:"tabular-nums" }}>{basicPct != null ? pct(basicPct) : "-"}</td>
                     <td style={{ ...S.td, fontVariantNumeric:"tabular-nums" }}>{pct(fdPct)}</td>
                     <td style={S.td}>
                       <div style={{ display:"flex", gap:3, flexWrap:"wrap" }}>
@@ -522,7 +522,7 @@ export default function CapTableApp() {
       {
         k:"b83", title:"83(b) Elections", icon:"📝",
         law:"IRC §83(b)",
-        desc:"Allows holders of unvested restricted stock to elect to be taxed at grant date (lower value) rather than vesting date. Must be filed with the IRS within 30 days of the grant — no extensions exist. Missing this deadline is irreversible."
+        desc:"Allows holders of unvested restricted stock to elect to be taxed at grant date (lower value) rather than vesting date. Must be filed with the IRS within 30 days of the grant · no extensions exist. Missing this deadline is irreversible."
       },
       {
         k:"qsbs", title:"QSBS (§1202)", icon:"⭐",
@@ -532,7 +532,7 @@ export default function CapTableApp() {
       {
         k:"f3921", title:"Form 3921", icon:"📋",
         law:"IRC §6039",
-        desc:"Companies must file Form 3921 with the IRS and furnish a copy to employees for each ISO exercise, by January 31 of the following year. Penalty: $270–$550 per form for late filing; no cap for intentional disregard."
+        desc:"Companies must file Form 3921 with the IRS and furnish a copy to employees for each ISO exercise, by January 31 of the following year. Penalty: $270-$550 per form for late filing; no cap for intentional disregard."
       },
     ];
 
@@ -723,7 +723,7 @@ export default function CapTableApp() {
                       {r.isNew ? "★ " : ""}{r.holder}
                     </td>
                     <td style={{ ...S.td, fontVariantNumeric:"tabular-nums" }}>{r.isNew ? fmt(Math.round(newShares)) : fmt(r.shares)}</td>
-                    <td style={{ ...S.td, fontVariantNumeric:"tabular-nums" }}>{r.isNew ? "—" : pct(before)}</td>
+                    <td style={{ ...S.td, fontVariantNumeric:"tabular-nums" }}>{r.isNew ? "-" : pct(before)}</td>
                     <td style={{ ...S.td, fontVariantNumeric:"tabular-nums" }}>{pct(after)}</td>
                     <td style={{ ...S.td, fontVariantNumeric:"tabular-nums", color: r.isNew ? "#C8915A" : delta < -0.001 ? "#EF4444" : "#10B981" }}>
                       {r.isNew ? "New" : ((delta * 100).toFixed(2) + "%")}
@@ -823,7 +823,7 @@ export default function CapTableApp() {
       <div style={{ maxWidth:560 }}>
         {issueSuccess && (
           <div style={{ padding:"12px 16px", background:"#10B98118", border:"0.5px solid #10B981", borderRadius:8, marginBottom:16, fontSize:13, color:"#10B981", fontWeight:500 }}>
-            ✓ Security issued and added to cap table — redirecting…
+            ✓ Security issued and added to cap table · redirecting…
           </div>
         )}
         <div style={S.card}>
@@ -852,7 +852,7 @@ export default function CapTableApp() {
             <div>
               <label style={S.label}>Price per share ($)</label>
               <input style={{ ...S.input, borderColor: belowFMV ? "#EF4444" : undefined }} type="number" step="0.0001" value={issueForm.price} onChange={e => setIssueForm(p=>({...p,price:e.target.value}))} />
-              {belowFMV && <div style={{ fontSize:11, color:"#EF4444", marginTop:3 }}>⚡ Below 409A FMV (${currentFMV}/share) — §409A violation risk</div>}
+              {belowFMV && <div style={{ fontSize:11, color:"#EF4444", marginTop:3 }}>⚡ Below 409A FMV (${currentFMV}/share) · §409A violation risk</div>}
             </div>
             <div>
               <label style={S.label}>Grant / issuance date *</label>
@@ -875,7 +875,7 @@ export default function CapTableApp() {
           )}
           {isOption && !belowFMV && (
             <div style={S.warnBox("#378ADD")}>
-              ℹ Option exercise price is at or above current 409A FMV ($0.42/share). <strong>Note:</strong> the current 409A is {mosDiff(CO.valDate, TODAY)} months old — a new valuation is needed before issuing further options.
+              ℹ Option exercise price is at or above current 409A FMV ($0.42/share). <strong>Note:</strong> the current 409A is {mosDiff(CO.valDate, TODAY)} months old · a new valuation is needed before issuing further options.
             </div>
           )}
           {issueForm.cls === "SAFE" && (

@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from "recharts";
-import { LayoutGrid, Building2, Users, TrendingUp, FileText, UserCircle, Calendar, Wifi, WifiOff, RefreshCw } from "lucide-react";
+import { LayoutGrid, Building2, Users, TrendingUp, FileText, UserCircle, Calendar, Wifi, WifiOff, RefreshCw, Sparkles } from "lucide-react";
 import { SAFEStackModeler, DualTVPI } from "./SAFEShadowModel";
 import LPEqualization from "./LPEqualization";
+import ReportStudio from "./ReportStudio";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
@@ -16,7 +17,7 @@ const FUND = {
 const CURRENT_YEAR = new Date().getFullYear();
 const TAX_YEARS = Array.from({ length: CURRENT_YEAR - FUND.vintage + 1 }, (_, i) => FUND.vintage + i);
 
-// ─── Seed data (fallback only — used when API is unreachable) ─────────────────
+// ─── Seed data (fallback only · used when API is unreachable) ─────────────────
 const SEED_PORTFOLIO = [
   { id:"pc1", name:"Mohan",       sector:"Deep Tech / Mining AI", invested:2000000, ownership:8.5,  currentMark:8000000, stage:"Series A", date:"2022-03-15", status:"active", moic:4.0 },
   { id:"pc2", name:"NovaBio",     sector:"Biotech",               invested:1500000, ownership:6.2,  currentMark:1500000, stage:"Seed",     date:"2022-07-01", status:"active", moic:1.0 },
@@ -55,13 +56,13 @@ const QUARTERLY = [
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const fmt    = n => n==null?"—":n>=1e6?"$"+(n/1e6).toFixed(1)+"M":n>=1e3?"$"+(n/1e3).toFixed(0)+"K":"$"+n.toLocaleString();
+const fmt    = n => n==null?"-":n>=1e6?"$"+(n/1e6).toFixed(1)+"M":n>=1e3?"$"+(n/1e3).toFixed(0)+"K":"$"+n.toLocaleString();
 const pct    = n => (n*100).toFixed(1)+"%";
-const fmtX   = n => n==null?"—":n.toFixed(2)+"x";
+const fmtX   = n => n==null?"-":n.toFixed(2)+"x";
 const fmtDate= d => new Date(d).toLocaleDateString("en-US",{month:"short",year:"numeric"});
 const d$     = n => !n||n===0?"":"$"+Math.round(n).toLocaleString("en-US");
 const dParen = n => !n||n===0?"":"$("+Math.round(Math.abs(n)).toLocaleString("en-US")+")";
-const dash   = v => v==null ? <span style={{color:"#A89A8C"}}>—</span> : v;
+const dash   = v => v==null ? <span style={{color:"#A89A8C"}}>-</span> : v;
 
 function calcIRR(cashflows) {
   if(!cashflows||cashflows.length<2)return 0;
@@ -424,6 +425,7 @@ export default function FundDashboard({ onLogout }) {
     {id:"lps",       label:"LP Management",icon:Users},
     {id:"metrics",   label:"Fund Metrics", icon:TrendingUp},
     {id:"documents", label:"Documents",    icon:FileText},
+    {id:"reports",   label:"Report Studio",icon:Sparkles},
     {id:"lpportal",  label:"LP Portal",    icon:UserCircle},
   ];
 
@@ -502,7 +504,7 @@ export default function FundDashboard({ onLogout }) {
                   <td style={{...S.td,fontWeight:500}}>{p.name}</td>
                   <td style={S.td}><span style={S.tag}>{p.sector}</span></td>
                   <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{fmt(p.invested)}</td>
-                  <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{p.status==="exited"?<span style={{color:"#10B981"}}>Exited — {fmt(p.realized)}</span>:fmt(p.currentMark)}</td>
+                  <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{p.status==="exited"?<span style={{color:"#10B981"}}>Exited · {fmt(p.realized)}</span>:fmt(p.currentMark)}</td>
                   <td style={{...S.td,...moicStyle(p.moic)}}>{fmtX(p.moic)}</td>
                   <td style={S.td}><span style={S.badge(p.status==="active"?"#10B981":"#6366F1")}>{p.status}</span></td>
                 </tr>
@@ -676,11 +678,11 @@ export default function FundDashboard({ onLogout }) {
                     <td style={{...S.td,...(y.tvpi!=null?(y.tvpi>=2?S.moicUp:y.tvpi>=1?S.moicFlat:S.moicDown):{}),fontVariantNumeric:"tabular-nums"}}>{dash(y.tvpi!=null?fmtX(y.tvpi):null)}</td>
                     <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{dash(y.dpi!=null?fmtX(y.dpi):null)}</td>
                     <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{dash(y.rvpi!=null?fmtX(y.rvpi):null)}</td>
-                    <td style={{...S.td,color:y.irr!=null?(y.irr>=0?"#10B981":"#EF4444"):"#A89A8C",fontVariantNumeric:"tabular-nums"}}>{y.irr!=null?`${y.irr>=0?"+":""}${y.irr.toFixed(1)}%`:"—"}</td>
+                    <td style={{...S.td,color:y.irr!=null?(y.irr>=0?"#10B981":"#EF4444"):"#A89A8C",fontVariantNumeric:"tabular-nums"}}>{y.irr!=null?`${y.irr>=0?"+":""}${y.irr.toFixed(1)}%`:"-"}</td>
                     <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{dash(y.nav!=null?fmt(y.nav):null)}</td>
                     <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{fmt(y.paidIn)}</td>
-                    <td style={{...S.td,fontVariantNumeric:"tabular-nums",color:y.distributions>0?"#10B981":"inherit"}}>{dash(y.distributions!=null?(y.distributions>0?fmt(y.distributions):"—"):null)}</td>
-                    <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{dash(y.carry!=null?(y.carry>0?fmt(y.carry):"—"):null)}</td>
+                    <td style={{...S.td,fontVariantNumeric:"tabular-nums",color:y.distributions>0?"#10B981":"inherit"}}>{dash(y.distributions!=null?(y.distributions>0?fmt(y.distributions):"-"):null)}</td>
+                    <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{dash(y.carry!=null?(y.carry>0?fmt(y.carry):"-"):null)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -762,7 +764,7 @@ export default function FundDashboard({ onLogout }) {
       <div style={{...S.card,background:"var(--color-background-secondary)",border:"0.5px dashed var(--color-border-secondary)"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
           <div>
-            <div style={{fontSize:12,fontWeight:500,marginBottom:2,color:"var(--color-text-secondary)"}}>K-1 Generation — Tax Year {taxYear}</div>
+            <div style={{fontSize:12,fontWeight:500,marginBottom:2,color:"var(--color-text-secondary)"}}>K-1 Generation · Tax Year {taxYear}</div>
             <div style={{fontSize:11,color:"var(--color-text-tertiary)",lineHeight:1.6}}>Generate Schedule K-1 for all {lps.length} LPs. Fields are pre-filled and fully editable. Changes save automatically.</div>
           </div>
           <div style={{fontSize:11,color:"var(--color-text-tertiary)",textAlign:"right",flexShrink:0,marginLeft:16}}>
@@ -807,7 +809,7 @@ export default function FundDashboard({ onLogout }) {
         <button onClick={()=>setSelectedLP(null)} style={{...S.btnSecondary,marginBottom:16}}>← All LPs</button>
         <div style={{...S.card,background:"#2A1D16",border:"none",marginBottom:14}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-            <div><div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:4,letterSpacing:"0.06em",textTransform:"uppercase"}}>LP Statement — {FUND.name}</div><div style={{fontSize:22,fontWeight:600,color:"#F1EFE8",marginBottom:4}}>{lp.name}</div><span style={{fontSize:11,padding:"3px 10px",borderRadius:4,background:"rgba(200,145,90,0.2)",color:"#E8C9A8"}}>{lp.type}</span></div>
+            <div><div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:4,letterSpacing:"0.06em",textTransform:"uppercase"}}>LP Statement · {FUND.name}</div><div style={{fontSize:22,fontWeight:600,color:"#F1EFE8",marginBottom:4}}>{lp.name}</div><span style={{fontSize:11,padding:"3px 10px",borderRadius:4,background:"rgba(200,145,90,0.2)",color:"#E8C9A8"}}>{lp.type}</span></div>
             <div style={{textAlign:"right"}}><div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:4}}>As of {new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{FUND.vintage} Vintage · {FUND.strategy}</div></div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:1,marginTop:20,background:"rgba(255,255,255,0.06)",borderRadius:8,overflow:"hidden"}}>
@@ -857,7 +859,7 @@ export default function FundDashboard({ onLogout }) {
       <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:2000,display:"flex",alignItems:"flex-start",justifyContent:"center",overflow:"auto",padding:"20px 16px"}} onClick={onClose}>
         <div style={{background:"#fff",maxWidth:820,width:"100%",fontFamily:"Arial,Helvetica,sans-serif"}} onClick={e=>e.stopPropagation()}>
           <div style={{background:"#2A1D16",padding:"10px 18px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div><span style={{color:"#E8C9A8",fontSize:13,fontWeight:500}}>Schedule K-1 (Form 1065) {taxYear} — {lp.name}</span><span style={{marginLeft:12,fontSize:11,color:"rgba(255,255,255,0.4)"}}>Filing deadline March 15, {taxYear+1}</span></div>
+            <div><span style={{color:"#E8C9A8",fontSize:13,fontWeight:500}}>Schedule K-1 (Form 1065) {taxYear} · {lp.name}</span><span style={{marginLeft:12,fontSize:11,color:"rgba(255,255,255,0.4)"}}>Filing deadline March 15, {taxYear+1}</span></div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>window.print()} style={{padding:"5px 14px",background:"#C8915A",color:"#fff",border:"none",borderRadius:5,fontSize:12,cursor:"pointer",fontWeight:500}}>Print / Save PDF</button>
               <button onClick={onClose} style={{padding:"5px 12px",background:"transparent",color:"rgba(255,255,255,0.55)",border:"0.5px solid rgba(255,255,255,0.2)",borderRadius:5,fontSize:12,cursor:"pointer"}}>Close</button>
@@ -976,7 +978,7 @@ export default function FundDashboard({ onLogout }) {
     </div>
   );
 
-  const VIEWS = {overview:<Overview/>,portfolio:<Portfolio/>,lps:<LPView/>,metrics:<Metrics/>,documents:<Documents/>,lpportal:<LPPortal/>};
+  const VIEWS = {overview:<Overview/>,portfolio:<Portfolio/>,lps:<LPView/>,metrics:<Metrics/>,documents:<Documents/>,lpportal:<LPPortal/>,reports:<ReportStudio lps={lps} portfolio={portfolio} cashflows={cashflows} metrics={metrics} fund={FUND}/>};
 
   return (
     <div style={S.page}>

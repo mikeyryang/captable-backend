@@ -2,10 +2,10 @@ import { useState, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { AlertTriangle, CheckCircle, Clock, Users } from "lucide-react";
 
-const fmt    = n => n==null?"—":n>=1e6?"$"+(n/1e6).toFixed(2)+"M":n>=1e3?"$"+(n/1e3).toFixed(0)+"K":"$"+Math.round(n).toLocaleString();
+const fmt    = n => n==null?"-":n>=1e6?"$"+(n/1e6).toFixed(2)+"M":n>=1e3?"$"+(n/1e3).toFixed(0)+"K":"$"+Math.round(n).toLocaleString();
 const pct    = n => (n*100).toFixed(1)+"%";
-const fmtX   = n => n==null?"—":n.toFixed(2)+"x";
-const fmtDate= d => d?new Date(d).toLocaleDateString("en-US",{month:"short",year:"numeric"}):"—";
+const fmtX   = n => n==null?"-":n.toFixed(2)+"x";
+const fmtDate= d => d?new Date(d).toLocaleDateString("en-US",{month:"short",year:"numeric"}):"-";
 
 // Per ILPA Model LPA Section 8 and NVCA Model Venture Fund LPA Article V
 // Equalization interest: compensates OG LPs for time value of early capital
@@ -136,8 +136,8 @@ export default function LPEqualization({ lps, cashflows, onClose }) {
             </div>
             <div style={{padding:"10px 0"}}>
               <div style={{fontSize:11,color:"var(--color-text-secondary)",marginBottom:4}}>Standard rates per ILPA</div>
-              <div style={{fontSize:12,color:"var(--color-text-primary)"}}>Early-stage VC: <strong>8–10%</strong></div>
-              <div style={{fontSize:12,color:"var(--color-text-primary)"}}>Buyout funds: <strong>6–8%</strong></div>
+              <div style={{fontSize:12,color:"var(--color-text-primary)"}}>Early-stage VC: <strong>8-10%</strong></div>
+              <div style={{fontSize:12,color:"var(--color-text-primary)"}}>Buyout funds: <strong>6-8%</strong></div>
             </div>
           </div>
 
@@ -176,11 +176,11 @@ export default function LPEqualization({ lps, cashflows, onClose }) {
                           : <span style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:"rgba(99,102,241,0.1)",color:"#6366F1",fontWeight:500}}>Subsequent</span>
                         }
                       </td>
-                      <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{isFounder?"—":fmt(eq.catchUpContribution)}</td>
-                      <td style={{...S.td,fontVariantNumeric:"tabular-nums",color:isFounder?"inherit":"#C8915A"}}>{isFounder?"—":fmt(eq.equalizationInterest)}</td>
-                      <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{isFounder?"—":fmt(eq.mgmtFeeEqualization)}</td>
-                      <td style={{...S.td,fontVariantNumeric:"tabular-nums",color:"#10B981"}}>{isFounder?"—":`(${fmt(eq.distOffset)})`}</td>
-                      <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{isFounder?"—":fmt(eq.gpCatchUp)}</td>
+                      <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{isFounder?"-":fmt(eq.catchUpContribution)}</td>
+                      <td style={{...S.td,fontVariantNumeric:"tabular-nums",color:isFounder?"inherit":"#C8915A"}}>{isFounder?"-":fmt(eq.equalizationInterest)}</td>
+                      <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{isFounder?"-":fmt(eq.mgmtFeeEqualization)}</td>
+                      <td style={{...S.td,fontVariantNumeric:"tabular-nums",color:"#10B981"}}>{isFounder?"-":`(${fmt(eq.distOffset)})`}</td>
+                      <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{isFounder?"-":fmt(eq.gpCatchUp)}</td>
                       <td style={{...S.td,fontWeight:600,fontVariantNumeric:"tabular-nums",color:isFounder?"inherit":"#6366F1"}}>{isFounder?"$0":fmt(eq.totalEqualization)}</td>
                       <td style={S.td}>{!isFounder&&<span style={{fontSize:11,color:"#C8915A",cursor:"pointer"}}>{selectedLP===lp.id?"▲ Hide":"▼ Detail"}</span>}</td>
                     </tr>
@@ -195,7 +195,7 @@ export default function LPEqualization({ lps, cashflows, onClose }) {
             <div style={S.card}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
                 <div>
-                  <div style={S.secH}>Equalization Detail — {detail.lp.name}</div>
+                  <div style={S.secH}>Equalization Detail · {detail.lp.name}</div>
                   <div style={{fontSize:12,color:"var(--color-text-secondary)"}}>Entry: {fmtDate(detail.lp.entryDate||fundFirstClose)} · Rate: {equalizationRate}% p.a. · Standard: ILPA Model LPA §8</div>
                 </div>
               </div>
@@ -212,7 +212,7 @@ export default function LPEqualization({ lps, cashflows, onClose }) {
                         <td style={S.td}>{c.label}</td>
                         <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{fmt(c.lpShare)}</td>
                         <td style={{...S.td,fontVariantNumeric:"tabular-nums"}}>{c.years} yrs</td>
-                        <td style={{...S.td,fontVariantNumeric:"tabular-nums",color:"var(--color-text-secondary)"}}>({equalizationRate}%^{c.years})−1 = {c.interestFactor}</td>
+                        <td style={{...S.td,fontVariantNumeric:"tabular-nums",color:"var(--color-text-secondary)"}}>({equalizationRate}%^{c.years})-1 = {c.interestFactor}</td>
                         <td style={{...S.td,fontWeight:600,fontVariantNumeric:"tabular-nums",color:"#C8915A"}}>{fmt(c.interest)}</td>
                       </tr>
                     ))}
@@ -242,7 +242,7 @@ export default function LPEqualization({ lps, cashflows, onClose }) {
                   </div>
                 </div>
                 <div>
-                  <div style={{fontSize:11,fontWeight:600,color:"var(--color-text-secondary)",marginBottom:8}}>TVPI Impact — With vs Without Equalization</div>
+                  <div style={{fontSize:11,fontWeight:600,color:"var(--color-text-secondary)",marginBottom:8}}>TVPI Impact · With vs Without Equalization</div>
                   <div style={{background:"var(--color-background-secondary)",borderRadius:8,padding:"12px"}}>
                     <div style={{marginBottom:10}}>
                       <div style={{fontSize:10,color:"var(--color-text-tertiary)",marginBottom:2}}>Without equalization (unfair windfall)</div>
@@ -252,11 +252,11 @@ export default function LPEqualization({ lps, cashflows, onClose }) {
                     <div style={{borderTop:"0.5px solid var(--color-border-tertiary)",paddingTop:10}}>
                       <div style={{fontSize:10,color:"var(--color-text-tertiary)",marginBottom:2}}>With equalization (fair entry)</div>
                       <div style={{fontSize:22,fontWeight:700,color:"#10B981",fontVariantNumeric:"tabular-nums"}}>{fmtX(detail.eq.fairTVPI)}</div>
-                      <div style={{fontSize:10,color:"var(--color-text-tertiary)"}}>TVPI matches fund-level return — fair treatment</div>
+                      <div style={{fontSize:10,color:"var(--color-text-tertiary)"}}>TVPI matches fund-level return · fair treatment</div>
                     </div>
                   </div>
                   <div style={{marginTop:10,padding:"8px 10px",background:"rgba(99,102,241,0.08)",borderRadius:7,fontSize:11,color:"#6366F1",lineHeight:1.6}}>
-                    The equalization interest ({fmt(detail.eq.equalizationInterest)}) is distributed pro-rata to founding LPs — compensating them for the time value of early capital deployed before this LP joined.
+                    The equalization interest ({fmt(detail.eq.equalizationInterest)}) is distributed pro-rata to founding LPs · compensating them for the time value of early capital deployed before this LP joined.
                   </div>
                 </div>
               </div>
@@ -265,15 +265,15 @@ export default function LPEqualization({ lps, cashflows, onClose }) {
 
           {/* For prospective LPs */}
           <div style={{...S.card,border:"0.5px solid rgba(200,145,90,0.3)",background:"rgba(200,145,90,0.05)"}}>
-            <div style={S.secH}>For Prospective LPs — Entry Economics</div>
+            <div style={S.secH}>For Prospective LPs · Entry Economics</div>
             <div style={{fontSize:12,color:"var(--color-text-secondary)",marginBottom:12,lineHeight:1.7}}>
               Any LP joining Valkyrie Fund I after the first close ({fmtDate(fundFirstClose)}) must pay an equalization payment to ensure fair treatment of founding LPs. The payment is calculated automatically based on their entry date, commitment size, and the equalization rate above. This framework ensures:
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
               {[
-                {icon:"✓",text:"Founding LPs are compensated for early risk — their TVPI is not diluted by later entrants",color:"#10B981"},
-                {icon:"✓",text:"New LPs enter at fair value — they pay for the returns generated before they joined",color:"#10B981"},
-                {icon:"✓",text:"GP carry is protected — catch-up provisions ensure the GP's economics are not diluted",color:"#10B981"},
+                {icon:"✓",text:"Founding LPs are compensated for early risk · their TVPI is not diluted by later entrants",color:"#10B981"},
+                {icon:"✓",text:"New LPs enter at fair value · they pay for the returns generated before they joined",color:"#10B981"},
+                {icon:"✓",text:"GP carry is protected · catch-up provisions ensure the GP's economics are not diluted",color:"#10B981"},
                 {icon:"✓",text:"All calculations are transparent, auditable, and documented per ILPA Model LPA §8",color:"#10B981"},
               ].map((r,i)=>(
                 <div key={i} style={{display:"flex",gap:8,padding:"8px 10px",background:"rgba(16,185,129,0.06)",borderRadius:7,border:"0.5px solid rgba(16,185,129,0.2)"}}>

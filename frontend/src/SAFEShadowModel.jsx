@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line, CartesianGrid, Legend } from "recharts";
 
-const fmt  = n => n==null?"—":n>=1e6?"$"+(n/1e6).toFixed(2)+"M":n>=1e3?"$"+(n/1e3).toFixed(0)+"K":"$"+Math.round(n).toLocaleString();
-const fmtX = n => n==null?"—":n.toFixed(2)+"x";
+const fmt  = n => n==null?"-":n>=1e6?"$"+(n/1e6).toFixed(2)+"M":n>=1e3?"$"+(n/1e3).toFixed(0)+"K":"$"+Math.round(n).toLocaleString();
+const fmtX = n => n==null?"-":n.toFixed(2)+"x";
 const pct  = n => (n*100).toFixed(2)+"%";
 
 // ── Shadow mark engine ────────────────────────────────────────────────────────
@@ -21,8 +21,8 @@ function calcShadowMark(safe, scenarios) {
         // Converts at cap using current 409A / most recent valuation
         val = cap > 0 && currentVal > 0
           ? currentVal > cap
-            ? (amt / cap) * currentVal   // above cap — mark up
-            : amt                         // below cap — carry at cost
+            ? (amt / cap) * currentVal   // above cap · mark up
+            : amt                         // below cap · carry at cost
           : amt;
         break;
       case "cap_bull":
@@ -58,7 +58,7 @@ function calcConversionAtExit(safe, exitVal) {
 
   let conversionPrice;
   if (cap > 0 && disc > 0) {
-    // Both cap and discount — take lower (better for investor)
+    // Both cap and discount · take lower (better for investor)
     const capPrice  = cap;
     const discPrice = exitVal * (1 - disc / 100);
     conversionPrice = Math.min(capPrice, discPrice);
@@ -86,8 +86,8 @@ export function SAFEStackModeler({ company, onClose }) {
   const EXIT_POINTS = [5e6, 10e6, 25e6, 50e6, 100e6, 200e6, 500e6];
 
   const [scenarios, setScenarios] = useState([
-    { id:1, label:"Converts at cap — bull case",     type:"cap_bull",  probability:25 },
-    { id:2, label:"Converts at cap — base case",     type:"cap_base",  probability:35 },
+    { id:1, label:"Converts at cap · bull case",     type:"cap_bull",  probability:25 },
+    { id:2, label:"Converts at cap · base case",     type:"cap_base",  probability:35 },
     { id:3, label:"Converts at discount",            type:"discount",  probability:15 },
     { id:4, label:"Stagnates (carried at cost)",     type:"cost",      probability:17 },
     { id:5, label:"Company fails",                   type:"zero",      probability:8  },
@@ -146,7 +146,7 @@ export function SAFEStackModeler({ company, onClose }) {
     td:      {padding:"7px 10px",color:"#F1EFE8",borderBottom:"0.5px solid rgba(255,255,255,0.06)",fontSize:12},
   };
 
-  // Uncontrolled input — saves on blur so user can type freely without losing focus
+  // Uncontrolled input · saves on blur so user can type freely without losing focus
   const Field = ({label, fieldKey, safeId, placeholder="", isText=false}) => {
     const numVal = safes.find(s=>s.id===safeId)?.[fieldKey];
     const display = isText ? (numVal||"") : (numVal ? String(numVal) : "");
@@ -176,16 +176,16 @@ export function SAFEStackModeler({ company, onClose }) {
         {/* Header */}
         <div style={S.hdr}>
           <div>
-            <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.07em"}}>SAFE Stack Modeler — IPEV §1.4 / §6.2</div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.07em"}}>SAFE Stack Modeler · IPEV §1.4 / §6.2</div>
             <div style={{fontSize:18,fontWeight:700,color:"#F1EFE8"}}>{company?.name||"Portfolio Company"}</div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:2}}>Shadow marks are GP estimates — disclosed separately from GAAP regulatory marks (cost)</div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:2}}>Shadow marks are GP estimates · disclosed separately from GAAP regulatory marks (cost)</div>
           </div>
           <button onClick={onClose} style={{padding:"6px 14px",background:"rgba(255,255,255,0.06)",border:"0.5px solid rgba(255,255,255,0.12)",borderRadius:6,color:"rgba(255,255,255,0.5)",fontSize:12,cursor:"pointer"}}>Close</button>
         </div>
 
         <div style={S.body}>
 
-          {/* Summary header — dark cards, always readable */}
+          {/* Summary header · dark cards, always readable */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:16}}>
             <div style={{background:"rgba(255,255,255,0.06)",border:"0.5px solid rgba(255,255,255,0.12)",borderRadius:10,padding:"14px 16px"}}>
               <div style={{fontSize:10,color:"rgba(255,255,255,0.45)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em"}}>Regulatory Mark (GAAP)</div>
@@ -198,7 +198,7 @@ export function SAFEStackModeler({ company, onClose }) {
               <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:4}}>Probability-weighted · IPEV §6.2 · Unaudited</div>
             </div>
             <div style={{background:totalHidden>=0?"rgba(16,185,129,0.10)":"rgba(239,68,68,0.10)",border:`0.5px solid ${totalHidden>=0?"rgba(16,185,129,0.3)":"rgba(239,68,68,0.3)"}`,borderRadius:10,padding:"14px 16px"}}>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.45)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em"}}>Hidden Value (Shadow − Cost)</div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.45)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em"}}>Hidden Value (Shadow - Cost)</div>
               <div style={{fontSize:24,fontWeight:700,color:totalHidden>=0?"#10B981":"#EF4444",fontVariantNumeric:"tabular-nums"}}>{fmt(totalHidden)}</div>
               <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:4}}>{totalHidden>=0?"Not visible in regulatory TVPI":"Enter valuation data above to model"}</div>
             </div>
@@ -299,7 +299,7 @@ export function SAFEStackModeler({ company, onClose }) {
 
               {/* Shadow breakdown bar */}
               <div style={S.card}>
-                <div style={S.secH}>Shadow Mark vs Cost — Per SAFE</div>
+                <div style={S.secH}>Shadow Mark vs Cost · Per SAFE</div>
                 <ResponsiveContainer width="100%" height={110}>
                   <BarChart data={shadowPerSafe.map(s=>({name:s.label,cost:s.amount,hidden:Math.max(0,s.shadowMark-s.amount)}))} margin={{top:4,right:8,left:0,bottom:0}}>
                     <XAxis dataKey="name" tick={{fontSize:9,fill:"rgba(255,255,255,0.4)"}}/>
@@ -346,7 +346,7 @@ export function DualTVPI({ portfolio, cashflows, metrics }) {
     <div style={{background:"#1A0F0A",borderRadius:12,padding:"16px 20px",marginBottom:14,border:"0.5px solid rgba(200,145,90,0.25)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
         <div>
-          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:3}}>Dual TVPI Framework — IPEV §6.2</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:3}}>Dual TVPI Framework · IPEV §6.2</div>
           <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>Regulatory mark vs GP economic estimate · {safeCompanies.length} SAFE investment{safeCompanies.length>1?"s":""} in portfolio</div>
         </div>
         <div style={{fontSize:10,color:"rgba(255,255,255,0.25)",textAlign:"right",lineHeight:1.5}}>Unaudited GP estimate<br/>Not for formal LP reporting</div>
@@ -357,7 +357,7 @@ export function DualTVPI({ portfolio, cashflows, metrics }) {
           null,
           {l:"Economic TVPI (GP Estimate)",v:fmtX(econTVPI),sub:"SAFEs at shadow mark · Unaudited",   color:"#C8915A",  note:"For LP communication only"},
           null,
-          {l:"Hidden Value (SAFE Portfolio)",v:fmt(hidden), sub:"Not visible in regulatory TVPI",      color:"#10B981",  note:"Shadow − cost basis"},
+          {l:"Hidden Value (SAFE Portfolio)",v:fmt(hidden), sub:"Not visible in regulatory TVPI",      color:"#10B981",  note:"Shadow - cost basis"},
         ].map((m,i)=>
           m===null
             ? <div key={i} style={{background:"rgba(255,255,255,0.06)"}}/>
