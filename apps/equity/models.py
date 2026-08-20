@@ -413,3 +413,103 @@ class ComplianceRecord(TenantModel):
 
     def __str__(self):
         return f"{self.get_event_type_display()} — {self.event_date}"
+
+
+# ══════════════════════════════════════════════════════════════════
+# FUND + INVESTMENT (multi-fund portfolio: one company, many instruments)
+# ══════════════════════════════════════════════════════════════════
+class Fund(models.Model):
+    """A fund vehicle (e.g. Valkyrie Fund I LP). One firm can run several."""
+    ENTITY_TYPES = [("LP", "Limited Partnership"), ("LLC", "Limited Liability Company")]
+    id            = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name          = models.CharField(max_length=255, unique=True)
+    short_name    = models.CharField(max_length=64, blank=True, help_text="e.g. 'Fund I'")
+    entity_type   = models.CharField(max_length=8, choices=ENTITY_TYPES, default="LP")
+    manager       = models.CharField(max_length=255, blank=True, default="Valkyrie Capital")
+    vintage_year  = models.IntegerField(null=True, blank=True)
+    committed_capital = models.BigIntegerField(default=0, help_text="Total LP commitments, in cents")
+    strategy      = models.CharField(max_length=255, blank=True)
+    state_of_inc  = models.CharField(max_length=64, blank=True, default="Delaware")
+    ein           = models.CharField(max_length=32, blank=True)
+    is_active     = models.BooleanField(default=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+    updated_at    = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Investment(models.Model):
+    """A single instrument the fund holds in a company: SAFE, note, or priced round."""
+    INSTRUMENT_TYPES = [
+        ("safe", "SAFE"), ("note", "Convertible Note"), ("priced", "Priced Equity"),
+        ("interest", "Interest / Direct"), ("token", "Token SAFT"),
+    ]
+    STATUS = [
+        ("active", "Active"), ("exited", "Exited / Realized"),
+        ("converted", "Converted (into another position)"),
+        ("superseded", "Superseded / Terminated"),
+    ]
+    id           = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    fund         = models.ForeignKey(Fund, on_delete=models.PROTECT, related_name="investments")
+    company      = models.ForeignKey("equity.Company", on_delete=models.CASCADE, related_name="investments")
+
+    instrument_type = models.CharField(max_length=16, choices=INSTRUMENT_TYPES)
+    status          = models.CharField(max_length=16, choices=STATUS, default="active")
+    date            = models.DateField(null=True, blank=True)
+    principal_cents = models.BigIntegerField(default=0, help_text="Amount invested, in cents")
+
+    cap_cents       = models.BigIntegerField(null=True, blank=True, help_text="Valuation cap, in cents")
+    cap_is_premoney = models.BooleanField(default=False)
+    discount_pct    = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
+    interest_rate_pct = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
+    maturity_date   = models.DateField(null=True, blank=True)
+    mfn             = models.BooleanField(default=False)
+    qsbs            = models.BooleanField(default=False)
+
+    round_name      = models.CharField(max_length=64, blank=True)
+    share_price     = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
+    num_shares      = models.BigIntegerField(null=True, blank=True)
+
+    current_mark_cents = models.BigIntegerField(null=True, blank=True)
+    valuation_method   = models.CharField(max_length=32, blank=True)
+    last_marked        = models.DateField(null=True, blank=True)
+
+    converted_into  = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="converted_from")
+
+    sector          = models.CharField(max_length=128, blank=True)
+    ceo_name        = models.CharField(max_length=128, blank=True)
+    company_contact = models.CharField(max_length=255, blank=True)
+    distributions_note = models.TextField(blank=True)
+    source_notes    = models.TextField(blank=True)
+    review_status   = models.CharField(max_length=64, blank=True)
+
+    created_at   = models.DateTimeField(auto_now_add=True)
+    updated_at   = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-date", "company__name"]
+        indexes  = [models.Index(fields=["fund", "status"]), models.Index(fields=["company"])]
+
+    def __str__(self):
+        return f"{self.company.name} - {self.get_instrument_type_display()} ({self.date})"
+
+    @property
+    def principal(self):
+        return self.principal_cents / 100 if self.principal_cents else 0
+
+    @property
+    def current_mark(self):
+        return (self.current_mark_cents / 100) if self.current_mark_cents is not None else self.principal
+
+    @property
+    def moic(self):
+        p = self.principal
+        return (self.current_mark / p) if p else 0
+
+    @property
+    def counts_toward_nav(self):
+        return self.status == "active"

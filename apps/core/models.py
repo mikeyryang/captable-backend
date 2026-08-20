@@ -44,3 +44,25 @@ class TenantModel(TimeStampedModel):
 
     class Meta:
         abstract = True
+
+
+import uuid as _uuid
+from django.db import models as _models
+
+class Cashflow(_models.Model):
+    """A dated fund-level cashflow: capital call or distribution."""
+    TYPES = [("call","Capital Call"),("dist","Distribution")]
+    id     = _models.UUIDField(primary_key=True, default=_uuid.uuid4, editable=False)
+    fund   = _models.ForeignKey("equity.Fund", on_delete=_models.CASCADE, related_name="cashflows", null=True, blank=True)
+    type   = _models.CharField(max_length=8, choices=TYPES)
+    label  = _models.CharField(max_length=255, blank=True)
+    amount_cents = _models.BigIntegerField(default=0, help_text="Positive cents; sign by type")
+    date   = _models.DateField()
+    created_at = _models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["date"]
+
+    @property
+    def amount(self):
+        return self.amount_cents / 100

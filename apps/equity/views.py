@@ -425,3 +425,57 @@ class ComplianceRecordViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, 
 
     def get_queryset(self):
         return ComplianceRecord.objects.filter(company_id=self.kwargs["company_pk"])
+
+
+# ── Fund + Investment viewsets ───────────────────────────────────
+from rest_framework import viewsets, filters
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.db.models import Sum, Count
+from .models import Fund, Investment
+from .serializers import FundSerializer, InvestmentSerializer
+
+
+class FundViewSet(viewsets.ModelViewSet):
+    queryset = Fund.objects.all()
+    serializer_class = FundSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["name", "short_name"]
+
+    @action(detail=True, methods=["get"])
+    def summary(self, request, pk=None):
+        """Fund-level rollup: invested, NAV, MOIC — counting only live positions."""
+        fund = self.get_object()
+        active = fund.investments.filter(status="active")
+        invested = sum(i.principal for i in active)
+        nav      = sum(i.current_mark for i in active)
+        by_type  = {}
+        for i in active:
+            by_type[i.instrument_type] = by_type.get(i.instrument_type, 0) + i.principal
+        return Response({
+            "fund": fund.name,
+            "active_positions": active.count(),
+            "total_positions": fund.investments.count(),
+            "invested": invested,
+            "nav": nav,
+            "moic": round(nav / invested, 4) if invested else 0,
+            "invested_by_type": by_type,
+        })
+
+
+class InvestmentViewSet(viewsets.ModelViewSet):
+    serializer_class = InvestmentSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["company__name", "ceo_name", "round_name", "sector"]
+    ordering_fields = ["date", "principal_cents", "status"]
+
+    def get_queryset(self):
+        qs = Investment.objects.select_related("fund", "company", "converted_into")
+        fund_id = self.request.query_params.get("fund")
+        status_ = self.request.query_params.get("status")
+        if fund_id: qs = qs.filter(fund_id=fund_id)
+        if status_: qs = qs.filter(status=status_)
+        return qs

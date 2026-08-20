@@ -228,3 +228,69 @@ class CapTableSummarySerializer(serializers.Serializer):
     post_money_valuation_cents = serializers.IntegerField(allow_null=True)
     holders           = serializers.ListField()
     compliance        = serializers.DictField()
+
+
+# ── Fund + Investment serializers ────────────────────────────────
+from .models import Fund, Investment
+
+
+class FundSerializer(serializers.ModelSerializer):
+    committed_capital_dollars = serializers.SerializerMethodField()
+    investment_count          = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Fund
+        fields = [
+            "id", "name", "short_name", "entity_type", "manager",
+            "vintage_year", "committed_capital", "committed_capital_dollars",
+            "strategy", "state_of_inc", "ein", "is_active",
+            "investment_count", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_committed_capital_dollars(self, obj):
+        return (obj.committed_capital or 0) / 100
+
+    def get_investment_count(self, obj):
+        return obj.investments.count()
+
+
+class InvestmentSerializer(serializers.ModelSerializer):
+    company_name    = serializers.CharField(source="company.name", read_only=True)
+    fund_name       = serializers.CharField(source="fund.name", read_only=True)
+    fund_short      = serializers.CharField(source="fund.short_name", read_only=True)
+    principal       = serializers.SerializerMethodField()
+    current_mark    = serializers.SerializerMethodField()
+    cap             = serializers.SerializerMethodField()
+    moic            = serializers.SerializerMethodField()
+    counts_toward_nav = serializers.BooleanField(read_only=True)
+    converted_into_round = serializers.CharField(source="converted_into.round_name", read_only=True, default=None)
+
+    class Meta:
+        model = Investment
+        fields = [
+            "id", "fund", "fund_name", "fund_short", "company", "company_name",
+            "instrument_type", "status", "date",
+            "principal", "current_mark", "cap", "moic",
+            "cap_is_premoney", "discount_pct", "interest_rate_pct",
+            "maturity_date", "mfn", "qsbs",
+            "round_name", "share_price", "num_shares",
+            "valuation_method", "last_marked",
+            "converted_into", "converted_into_round", "counts_toward_nav",
+            "sector", "ceo_name", "company_contact",
+            "distributions_note", "source_notes", "review_status",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_principal(self, obj):
+        return obj.principal
+
+    def get_current_mark(self, obj):
+        return obj.current_mark
+
+    def get_cap(self, obj):
+        return (obj.cap_cents / 100) if obj.cap_cents else None
+
+    def get_moic(self, obj):
+        return round(obj.moic, 4)

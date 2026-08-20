@@ -138,19 +138,27 @@ export default function FundDashboard({ onLogout }) {
     let cancelled=false;
     async function loadData() {
       try {
-        const [portRes, lpRes, cfRes] = await Promise.all([
-          api.get("/equity/companies/"),
-          api.get("/accounts/lps/"),
-          api.get("/core/cashflows/"),
-        ]);
-        if(cancelled)return;
-        if(portRes?.results?.length) setPortfolio(portRes.results.map(normalizeCompany));
-        else if(Array.isArray(portRes)&&portRes.length) setPortfolio(portRes.map(normalizeCompany));
-        if(lpRes?.results?.length) setLps(lpRes.results.map(normalizeLP));
-        else if(Array.isArray(lpRes)&&lpRes.length) setLps(lpRes.map(normalizeLP));
-        if(cfRes?.results?.length) setCashflows(cfRes.results);
-        else if(Array.isArray(cfRes)&&cfRes.length) setCashflows(cfRes);
-        setApiStatus("live");
+        // Each fetch is independent — a 404 on LPs must not kill the portfolio load
+        let gotPortfolio = false;
+        try {
+          const invRes = await api.get("/equity/investments/");
+          const invList = invRes?.results?.length ? invRes.results : (Array.isArray(invRes)?invRes:[]);
+          if(invList.length && !cancelled) { setPortfolio(groupInvestmentsByCompany(invList)); gotPortfolio = true; }
+        } catch(e) { console.warn("investments load failed", e); }
+
+        try {
+          const lpRes = await api.get("/accounts/lps/");
+          const lpList = lpRes?.results?.length ? lpRes.results : (Array.isArray(lpRes)?lpRes:[]);
+          if(lpList.length && !cancelled) setLps(lpList.map(normalizeLP));
+        } catch(e) { /* endpoint not built yet — keep demo LPs */ }
+
+        try {
+          const cfRes = await api.get("/core/cashflows/");
+          const cfList = cfRes?.results?.length ? cfRes.results : (Array.isArray(cfRes)?cfRes:[]);
+          if(cfList.length && !cancelled) setCashflows(cfList);
+        } catch(e) { /* endpoint not built yet — keep demo cashflows */ }
+
+        if(!cancelled) setApiStatus(gotPortfolio ? "live" : "demo");
       } catch(e) {
         if(!cancelled) setApiStatus("demo");
       }
@@ -158,6 +166,47 @@ export default function FundDashboard({ onLogout }) {
     loadData();
     return ()=>{ cancelled=true; };
   },[]);
+
+  // Group raw investments into one card per company (Traini's 4 SAFEs -> one card)
+  function groupInvestmentsByCompany(investments) {
+    const byCompany = {};
+    for(const inv of investments) {
+      const key = inv.company_name || inv.company || "Unknown";
+      if(!byCompany[key]) {
+        byCompany[key] = {
+          id:          inv.company,           // company UUID
+          name:        key,
+          sector:      inv.sector || "Other",
+          stage:       inv.round_name || inv.instrument_type || "Seed",
+          invested:    0,
+          ownership:   0,
+          currentMark: 0,
+          date:        inv.date || new Date().toISOString().slice(0,10),
+          status:      "active",
+          realized:    0,
+          instrumentType: inv.instrument_type,   // drives SAFE modeler visibility
+          hasSafes:    false,
+          investments: [],                        // keep the raw rows
+        };
+      }
+      const g = byCompany[key];
+      // Only live positions count toward invested / NAV
+      if(inv.counts_toward_nav !== false && inv.status === "active") {
+        g.invested    += parseFloat(inv.principal||0);
+        g.currentMark += parseFloat(inv.current_mark||inv.principal||0);
+      }
+      if(inv.status === "exited") { g.status = "exited"; g.realized += parseFloat(inv.current_mark||0); }
+      if(inv.instrument_type === "safe") g.hasSafes = true;
+      // earliest date across this company's investments
+      if(inv.date && inv.date < g.date) g.date = inv.date;
+      g.investments.push(inv);
+    }
+    return Object.values(byCompany).map(g => ({
+      ...g,
+      moic: g.invested > 0 ? g.currentMark / g.invested : (g.status==="exited"&&g.realized?1:0),
+      realized: g.realized || undefined,
+    }));
+  }
 
   // Normalize API shapes to our internal shape
   function normalizeCompany(c) {
@@ -176,6 +225,31 @@ export default function FundDashboard({ onLogout }) {
       moic:        parseFloat(c.moic||0)||((parseFloat(c.currentMark||c.current_mark||0))/(parseFloat(c.invested||c.investment_amount||1))),
     };
   }
+  // Enter a current mark for a company's primary active investment, persist via API
+  async function saveMark(company, markDollars) {
+    const val = parseFloat(markDollars);
+    if(isNaN(val) || val < 0) return;
+    // Find the primary active investment (largest principal) for this company
+    const active = (company.investments||[]).filter(i=>i.status==="active");
+    const primary = active.sort((a,b)=>(b.principal||0)-(a.principal||0))[0];
+    // Optimistic UI: update the grouped card immediately
+    setPortfolio(prev=>prev.map(p=>{
+      if(p.id!==company.id) return p;
+      const newMark = val;
+      return {...p, currentMark:newMark, moic: p.invested>0 ? newMark/p.invested : 0};
+    }));
+    // Persist to the investment if we have one and we're live
+    if(primary && apiStatus==="live"){
+      try {
+        await api.patch(`/equity/investments/${primary.id}/`, {
+          current_mark_cents: Math.round(val*100),
+          valuation_method: "recent_round",
+          last_marked: new Date().toISOString().slice(0,10),
+        });
+      } catch(e){ console.warn("mark save failed", e); }
+    }
+  }
+
   function normalizeLP(l) {
     return {
       id:            l.id||l.pk,
@@ -570,6 +644,7 @@ export default function FundDashboard({ onLogout }) {
                   <td style={S.td}>
                     <button onClick={e=>{e.stopPropagation();openEditCompany(p);}} style={S.btnEdit}>Edit</button>
                   <button onClick={e=>{e.stopPropagation();setShowSAFEModeler(p);}} style={{...S.btnEdit,marginLeft:4,color:"#6366F1",borderColor:"rgba(99,102,241,0.3)"}}>SAFE</button>
+                  {p.status!=="exited" && <button onClick={e=>{e.stopPropagation();const v=prompt(`Enter current mark for ${p.name} (dollars):`, p.currentMark||p.invested);if(v!==null)saveMark(p,v);}} style={{...S.btnEdit,marginLeft:4,color:"#C8915A",borderColor:"rgba(200,145,90,0.4)"}}>Mark</button>}
                   </td>
                 </tr>
               ))}

@@ -24,3 +24,10 @@ class CompanyMembershipAdmin(admin.ModelAdmin):
     search_fields  = ("user__email","company__name")
     list_filter    = ("role","company")
     raw_id_fields  = ("user","company")
+
+from apps.accounts.models import LP
+@admin.register(LP)
+class LPAdmin(admin.ModelAdmin):
+    list_display = ("name","lp_type","fund","commitment_cents","contributed_cents","distributions_cents","nav_cents")
+    list_filter  = ("lp_type","fund")
+    search_fields = ("name",)

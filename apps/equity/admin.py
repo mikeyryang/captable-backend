@@ -80,3 +80,37 @@ class ComplianceRecordAdmin(admin.ModelAdmin):
     search_fields  = ("notes","company__name")
     list_filter    = ("event_type","company")
     readonly_fields= ("created_at","updated_at")
+
+
+# ── Fund + Investment admin ──────────────────────────────────────
+from apps.equity.models import Fund, Investment
+
+@admin.register(Fund)
+class FundAdmin(admin.ModelAdmin):
+    list_display  = ("name", "short_name", "entity_type", "vintage_year", "manager", "is_active")
+    list_filter   = ("entity_type", "is_active", "vintage_year")
+    search_fields = ("name", "short_name")
+
+@admin.register(Investment)
+class InvestmentAdmin(admin.ModelAdmin):
+    list_display  = ("company", "fund", "instrument_type", "status", "date", "principal_display", "moic_display")
+    list_filter   = ("fund", "status", "instrument_type", "sector")
+    search_fields = ("company__name", "ceo_name", "round_name")
+    autocomplete_fields = ("company", "fund", "converted_into")
+    date_hierarchy = "date"
+    fieldsets = (
+        ("Identity", {"fields": ("fund", "company", "instrument_type", "status", "date")}),
+        ("Investment", {"fields": ("principal_cents", "round_name", "share_price", "num_shares")}),
+        ("SAFE / Note terms", {"fields": ("cap_cents", "cap_is_premoney", "discount_pct", "interest_rate_pct", "maturity_date", "mfn", "qsbs")}),
+        ("Valuation", {"fields": ("current_mark_cents", "valuation_method", "last_marked")}),
+        ("Conversion", {"fields": ("converted_into",)}),
+        ("Provenance", {"fields": ("sector", "ceo_name", "company_contact", "distributions_note", "source_notes", "review_status")}),
+    )
+
+    @admin.display(description="Principal")
+    def principal_display(self, obj):
+        return f"${obj.principal:,.0f}"
+
+    @admin.display(description="MOIC")
+    def moic_display(self, obj):
+        return f"{obj.moic:.2f}x"

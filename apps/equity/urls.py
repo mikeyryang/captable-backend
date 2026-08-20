@@ -4,11 +4,14 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CompanyViewSet, ShareClassViewSet, StakeholderViewSet,
     SecurityViewSet, ExerciseViewSet, FundingRoundViewSet, ComplianceRecordViewSet,
+    FundViewSet, InvestmentViewSet,
 )
 
 # Top-level router
 router = DefaultRouter()
 router.register(r"companies", CompanyViewSet, basename="company")
+router.register(r"funds", FundViewSet, basename="fund")
+router.register(r"investments", InvestmentViewSet, basename="investment")
 
 # Nested: /companies/{company_pk}/...
 try:
